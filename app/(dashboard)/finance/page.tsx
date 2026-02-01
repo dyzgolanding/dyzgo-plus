@@ -232,8 +232,6 @@ export default function AnalyticsPage() {
   // 4. PROCESAMIENTO
   // 
 
-[Image of data processing flow diagram]
-
   const processAllMetrics = (tickets: RawTicket[], eventList: DashboardEvent[], range: string, allTiers: TicketTier[]) => {
     let revenue = 0
     let scanned = 0
