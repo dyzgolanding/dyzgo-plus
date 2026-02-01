@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import LivePreview from '@/components/hud/LivePreview'
 
 // Imports de Paneles
@@ -76,7 +76,8 @@ async function getCoordinates(address: string) {
   }
 }
 
-export default function CreateEventPage() {
+// --- COMPONENTE INTERNO CON LA LÓGICA (CLIENT COMPONENT) ---
+function CreateEventContent() {
   const { activeSection, setActiveSection, eventData } = useEventStore()
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -116,7 +117,6 @@ export default function CreateEventPage() {
               prohibitedItems: event.prohibited_items || [],
               socialLinks: { instagram: event.instagram_url || '' },
               
-              // Se eliminó el 'any' usando la interfaz TicketTierDB
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               tickets: event.ticket_tiers ? (event.ticket_tiers as any[]).map((t: TicketTierDB) => ({
                 id: t.id,
@@ -158,7 +158,6 @@ export default function CreateEventPage() {
     if (eventData.tickets.length === 0) return alert("Error: Crea al menos un ticket.")
     
     for (const t of eventData.tickets) {
-        // Validación segura sin ts-ignore
         const soldCount = t.sold || 0;
         if (t.quantity < soldCount) {
             alert(`Error: El stock del ticket "${t.name}" (${t.quantity}) no puede ser menor a la cantidad ya vendida (${soldCount}).`);
@@ -176,7 +175,6 @@ export default function CreateEventPage() {
 
       let finalImageUrl = eventData.coverImage
       
-      // Acceso seguro al estado temporal sin ts-ignore
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const fileToUpload = (useEventStore.getState() as any).tempFile 
 
@@ -212,9 +210,7 @@ export default function CreateEventPage() {
         longitude: lon, 
         club_name: eventData.venue,
         date: eventData.date,
-        // --- CORRECCIÓN CLAVE: Usar la fecha de fin del estado ---
-        end_date: eventData.endDate || eventData.date, // Si no hay fecha fin, usa la de inicio
-        // --------------------------------------------------------
+        end_date: eventData.endDate || eventData.date,
         hour: eventData.startTime,
         end_time: eventData.endTime,
         image_url: finalImageUrl,
@@ -289,7 +285,6 @@ export default function CreateEventPage() {
       router.push('/events')
 
     } catch (error: unknown) {
-      // Manejo de error seguro para TypeScript 'unknown'
       console.error(error)
       const message = error instanceof Error ? error.message : 'Error desconocido'
       alert("Error al guardar: " + message)
@@ -363,4 +358,21 @@ function NavButton({ active, onClick, icon, label }: NavButtonProps) {
             <span className={`text-[10px] font-medium transition-colors ${active ? 'text-white' : 'text-zinc-500'}`}>{label}</span>
         </button>
     )
+}
+
+// --- EXPORTACIÓN PRINCIPAL ENVUELTA EN SUSPENSE ---
+// Esto soluciona el error "useSearchParams() should be wrapped in a suspense boundary"
+export default function CreateEventPage() {
+  return (
+    <Suspense fallback={
+        <div className="flex h-screen w-full items-center justify-center bg-[#09090b] text-white">
+            <div className="flex flex-col items-center gap-4">
+                <Loader2 className="animate-spin text-purple-600" size={40} />
+                <p className="text-sm text-zinc-400 animate-pulse">Cargando editor...</p>
+            </div>
+        </div>
+    }>
+        <CreateEventContent />
+    </Suspense>
+  )
 }
