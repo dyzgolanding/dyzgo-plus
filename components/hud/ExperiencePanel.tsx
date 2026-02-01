@@ -1,15 +1,35 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+
+import React, { useState, useRef, useEffect } from 'react'
 import { useEventStore } from '@/store/useEventStore'
 import { AlignLeft, Users2, Ban, Plus, X, Bold, Italic, Underline, Shirt, Smartphone } from 'lucide-react'
 
+// --- INTERFACES PARA TIPADO ESTRICTO ---
+interface EventDataExperience {
+  description?: string
+  prohibitedItems?: string[]
+  minAgeMen?: number
+  minAgeWomen?: number
+  dressCode?: string
+  socialLinks?: { instagram?: string; [key: string]: string | undefined }
+  settings?: { showInstagram?: boolean; [key: string]: unknown }
+  [key: string]: unknown
+}
+
+interface ExperienceStoreState {
+  eventData: EventDataExperience
+  // Definimos setExperience para que acepte parciales de los datos
+  setExperience: (data: Partial<EventDataExperience>) => void
+}
+
 export default function ExperiencePanel() {
-  // Quitamos updateSettings si da problemas y usamos setExperience para todo
-  const { eventData, setExperience } = useEventStore()
+  // Casting seguro del store a la interfaz local
+  const { eventData, setExperience } = useEventStore() as unknown as ExperienceStoreState
+  
   const [itemInput, setItemInput] = useState('')
   const editorRef = useRef<HTMLDivElement>(null)
 
-  // 1. ESTADO SEGURO: Si settings no existe, asumimos false
+  // 1. ESTADO SEGURO
   const isInstagramActive = eventData.settings?.showInstagram ?? false
 
   useEffect(() => {
@@ -20,6 +40,7 @@ export default function ExperiencePanel() {
         editorRef.current.innerHTML = eventData.description
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const applyFormat = (command: string) => {
@@ -39,22 +60,22 @@ export default function ExperiencePanel() {
     setExperience({ prohibitedItems: [...(eventData.prohibitedItems || []), itemInput.trim()] })
     setItemInput('')
   }
+
   const handleRemoveItem = (itemToRemove: string) => {
-    setExperience({ prohibitedItems: eventData.prohibitedItems.filter(i => i !== itemToRemove) })
+    setExperience({ prohibitedItems: (eventData.prohibitedItems || []).filter(i => i !== itemToRemove) })
   }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleAddItem()
   }
   
   const updateSocial = (key: string, value: string) => {
-    // Aseguramos que socialLinks exista
     const currentSocial = eventData.socialLinks || {}
     setExperience({ socialLinks: { ...currentSocial, [key]: value } })
   }
 
   // 2. FUNCIÓN DE TOGGLE ROBUSTA
   const toggleInstagram = () => {
-      // Creamos o actualizamos el objeto settings usando setExperience
       const currentSettings = eventData.settings || {}
       setExperience({
           settings: {
@@ -110,6 +131,7 @@ export default function ExperiencePanel() {
         <div
             ref={editorRef}
             contentEditable
+            suppressContentEditableWarning={true} // Importante para evitar warnings de hidratación
             onInput={handleInput}
             className="w-full h-40 bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-sm text-zinc-300 focus:ring-2 focus:ring-purple-600 outline-none overflow-y-auto leading-relaxed cursor-text transition-all empty:before:content-[attr(placeholder)] empty:before:text-zinc-600 [&>b]:text-white [&>b]:font-bold [&>i]:text-purple-300 [&>i]:italic [&>u]:text-white [&>u]:underline [&>u]:decoration-purple-500"
             role="textbox"

@@ -19,11 +19,13 @@ export default function NotFound() {
             Parece que te perdiste en el backstage. Esta página no existe o fue eliminada.
         </p>
 
-        <Link href="/">
-            <button className="px-8 py-3 bg-white text-black font-bold rounded-xl hover:scale-105 transition-transform flex items-center gap-2 mx-auto">
-                <ArrowLeft size={18} />
-                Volver al Dashboard
-            </button>
+        {/* CORRECCIÓN: Estilos aplicados directamente al Link, sin button anidado */}
+        <Link 
+            href="/"
+            className="inline-flex items-center gap-2 px-8 py-3 bg-white text-black font-bold rounded-xl hover:scale-105 transition-transform mx-auto"
+        >
+            <ArrowLeft size={18} />
+            Volver al Dashboard
         </Link>
       </div>
 

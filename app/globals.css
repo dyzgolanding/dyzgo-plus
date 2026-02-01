@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Si usas una librería externa de animaciones asegúrate que este paquete esté instalado, 
+   de lo contrario comenta la siguiente línea para evitar errores de 'Module not found' */
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -124,7 +126,7 @@
   }
 }
 
-/* Elimina absolutamente todos los bordes de enfoque en gráficos y sus elementos internos */
+/* Fix para Recharts: Elimina bordes de enfoque en gráficos */
 .recharts-wrapper:focus,
 .recharts-surface:focus,
 .recharts-sector:focus,

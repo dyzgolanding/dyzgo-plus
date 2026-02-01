@@ -1,4 +1,5 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,11 +8,43 @@ import { supabase } from '@/lib/supabase'
 import { useEventStore } from '@/store/useEventStore'
 import { useOrg } from '@/components/providers/org-provider'
 
+// 1. Interfaces para tipado estricto
+interface TicketData {
+  quantity: number
+  quantity_sold: number
+}
+
+interface EventData {
+  id: string
+  created_at: string
+  name: string
+  venue: string
+  date: string
+  end_time: string
+  cover_image: string
+  status: string
+  tickets: TicketData[]
+}
+
+interface EventCardProps {
+  id: string
+  title: string
+  date: string
+  location: string
+  image: string
+  status: string
+  sold: number
+  total: number
+  canEdit: boolean
+}
+
 export default function EventsPage() {
   const router = useRouter()
   const { resetEvent } = useEventStore() 
   const { currentOrgId, currentRole } = useOrg()
-  const [events, setEvents] = useState<any[]>([])
+  
+  // Tipado del estado
+  const [events, setEvents] = useState<EventData[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState('Todos')
@@ -33,31 +66,24 @@ export default function EventsPage() {
       if (data) {
         const now = new Date()
 
-        const adaptedEvents = data.map((e: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const adaptedEvents: EventData[] = data.map((e: any) => {
             let currentStatus = e.status || 'draft'
             
             // --- LÓGICA DE CADUCIDAD (AUTO-FINALIZAR) ---
-            // Solo verificamos si no está ya marcado como 'ended'
             if (currentStatus !== 'ended') {
-                // Prioridad: end_date > date
                 const targetDateStr = e.end_date || e.date
                 
                 if (targetDateStr) {
-                    // Hora por defecto: fin del día si no hay hora específica
                     const timePart = e.end_time || '23:59:59'
-                    
-                    // Construimos la fecha de término exacta
-                    // Nota: Asegúrate que el formato de fecha sea compatible (YYYY-MM-DD)
                     const eventEndDateTime = new Date(`${targetDateStr}T${timePart}`)
                     
-                    // Si la fecha de término es válida y YA PASÓ
                     if (!isNaN(eventEndDateTime.getTime()) && eventEndDateTime < now) {
                         currentStatus = 'ended'
                         
-                        // Actualizamos silenciosamente en Supabase para que persista
-                        // Solo si en la BD no estaba ya como 'ended' para no saturar requests
                         if (e.status !== 'ended') {
                             supabase.from('events').update({ status: 'ended' }).eq('id', e.id).then(() => {
+                                // eslint-disable-next-line no-console
                                 console.log(`Evento ${e.id} finalizado por caducidad temporal.`)
                             })
                         }
@@ -75,6 +101,7 @@ export default function EventsPage() {
                 end_time: e.end_time,
                 cover_image: e.image_url,
                 status: currentStatus, 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 tickets: e.ticket_tiers?.map((t: any) => ({
                     quantity: t.total_stock,
                     quantity_sold: t.sold_tickets
@@ -176,8 +203,8 @@ export default function EventsPage() {
                     location={event.venue || 'Ubicación por definir'} 
                     image={event.cover_image || "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?q=80&w=1000&auto=format&fit=crop"} 
                     status={event.status} 
-                    sold={event.tickets?.reduce((acc: number, t: any) => acc + (t.quantity_sold || 0), 0) || 0} 
-                    total={event.tickets?.reduce((acc: number, t: any) => acc + (t.quantity || 0), 0) || 0} 
+                    sold={event.tickets?.reduce((acc, t) => acc + (t.quantity_sold || 0), 0) || 0} 
+                    total={event.tickets?.reduce((acc, t) => acc + (t.quantity || 0), 0) || 0} 
                     canEdit={canCreate} 
                 />
             ))}
@@ -186,11 +213,11 @@ export default function EventsPage() {
   )
 }
 
-function EventCard({ id, title, date, location, image, status, sold, total, canEdit }: any) {
+function EventCard({ id, title, date, location, image, status, sold, total, canEdit }: EventCardProps) {
     const percentage = total > 0 ? Math.round((sold / total) * 100) : 0
     const formattedDate = date && date !== 'Fecha por definir' ? date.split('-').reverse().join('-') : date
 
-    const statusConfig: any = { 
+    const statusConfig: Record<string, { style: string; dot: string; text: string }> = { 
         active: { style: 'bg-black/80 border-[#00D15B] text-[#00D15B] shadow-[0_0_20px_rgba(0,209,91,0.3)]', dot: 'bg-[#00D15B]', text: 'A LA VENTA' }, 
         draft: { style: 'bg-black/80 border-white/30 text-white/60', dot: 'bg-white/40', text: 'BORRADOR' }, 
         ended: { style: 'bg-black/80 border-[#8A2BE2] text-[#8A2BE2]', dot: 'bg-[#8A2BE2]', text: 'FINALIZADO' } 
@@ -202,6 +229,7 @@ function EventCard({ id, title, date, location, image, status, sold, total, canE
         <div className="group bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] overflow-hidden hover:border-white/20 transition-all hover:scale-[1.01] shadow-xl shadow-purple-900/5 flex flex-col h-full">
             <div className="h-40 w-full relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-t from-[#030005] via-transparent to-transparent z-10 opacity-90" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={title} />
                 <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 backdrop-blur-md z-20 transition-all ${currentStatus.style}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${currentStatus.dot} ${status === 'active' ? 'animate-pulse' : ''}`} />

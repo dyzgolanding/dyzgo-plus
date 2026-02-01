@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script"; // <--- 1. Importamos Script
-import "./globals.css";
+import Script from "next/script"; 
+import "./globals.css"; // <--- Correcto: globals.css (plural)
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +30,7 @@ export default function RootLayout({
       >
         {children}
         
-        {/* <--- 2. Script de Google Maps con librería "places" */}
+        {/* Script de Google Maps */}
         <Script
           src={`https://maps.googleapis.com/maps/api/js?key=AIzaSyDOZ9gVgcmAr19Ol35AzFGiuYR_8v8Mx-4&libraries=places`}
           strategy="beforeInteractive"

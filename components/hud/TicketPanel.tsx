@@ -2,15 +2,66 @@
 import { useState, forwardRef } from 'react' 
 import { 
   Plus, Trash2, UserCheck, 
-  Calendar, Clock, Ghost, Eye, EyeOff, ChevronDown, ChevronUp, Save, X, AlertTriangle, Slash,
-  Ticket as TicketIcon, Gift, Settings, Tag, Layers
+  Calendar, Clock, Ghost, Eye, EyeOff, ChevronDown, ChevronUp, Save, X, AlertTriangle,
+  Ticket as TicketIcon, Gift, Settings, Layers
 } from 'lucide-react'
-import { useEventStore, Ticket } from '@/store/useEventStore'
+import { useEventStore } from '@/store/useEventStore'
 import DatePicker, { registerLocale } from 'react-datepicker' 
 import "react-datepicker/dist/react-datepicker.css"
 import { es } from 'date-fns/locale/es'
 
 registerLocale('es', es)
+
+// --- INTERFACES LOCALES PARA TIPADO ---
+interface Ticket {
+  id: string
+  name: string
+  price: number
+  quantity: number
+  description?: string
+  startDate?: string
+  endDate?: string
+  isGhostSoldOut: boolean
+  isActive: boolean
+  isNominative: boolean
+  type: 'paid' | 'courtesy'
+  color: string
+  ticketsIncluded?: number
+  sold?: number
+}
+
+interface TicketStoreState {
+  eventData: {
+    tickets: Ticket[]
+    [key: string]: unknown
+  }
+  addTicket: (t: Omit<Ticket, 'id'>) => void
+  removeTicket: (id: string) => void
+  updateTicket: (id: string, data: Partial<Ticket>) => void
+}
+
+interface CustomInputProps {
+  value?: string
+  onClick?: () => void
+  placeholder?: string
+  icon?: React.ReactNode
+}
+
+// Estado inicial para el formulario (tipado flexible para inputs)
+const INITIAL_TICKET_STATE = {
+  name: '', 
+  price: 0, 
+  quantity: 0, 
+  description: '', 
+  startDate: '', 
+  endDate: '', 
+  isGhostSoldOut: false, 
+  isActive: true, 
+  isNominative: false, 
+  type: 'paid' as const, 
+  color: 'purple',
+  ticketsIncluded: 1
+}
 
 const datePickerStyles = `
   .react-datepicker-wrapper { width: 100%; }
@@ -46,7 +97,6 @@ const datePickerStyles = `
     color: #3f3f46 !important;
   }
   
-  /* Selector de Hora y Scrollbar Estética */
   .react-datepicker__time-container { 
     border-left: 1px solid #27272a !important;
     background-color: #09090b !important;
@@ -86,7 +136,6 @@ const datePickerStyles = `
     color: white !important;
   }
 
-  /* Eliminar flechas de inputs numéricos */
   input[type=number]::-webkit-inner-spin-button, 
   input[type=number]::-webkit-outer-spin-button { 
     -webkit-appearance: none; 
@@ -97,21 +146,18 @@ const datePickerStyles = `
   }
 `
 
-const INITIAL_TICKET_STATE: Omit<Ticket, 'id'> = {
-  name: '', price: 0, quantity: 0, description: '', startDate: '', endDate: '', 
-  isGhostSoldOut: false, isActive: true, isNominative: false, type: 'paid', color: 'purple',
-  ticketsIncluded: 1
-}
-
 export default function TicketPanel() {
-  const { eventData, addTicket, removeTicket, updateTicket } = useEventStore()
+  // Casting seguro del store
+  const { eventData, addTicket, removeTicket, updateTicket } = useEventStore() as unknown as TicketStoreState
+  
   const [isCreating, setIsCreating] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false) 
   const [showAdvancedEdit, setShowAdvancedEdit] = useState(false) 
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null)
   const [ticketToDelete, setTicketToDelete] = useState<string | null>(null) 
   
-  const [newTicketForm, setNewTicketForm] = useState({ ...INITIAL_TICKET_STATE, price: '', quantity: '' })
+  // Estado del formulario con tipos flexibles para inputs controlados (string | number)
+  const [newTicketForm, setNewTicketForm] = useState({ ...INITIAL_TICKET_STATE, price: '' as string | number, quantity: '' as string | number })
 
   const parseDate = (dateStr?: string) => {
       if (!dateStr) return null
@@ -153,13 +199,13 @@ export default function TicketPanel() {
       updateTicket(ticketId, { [type === 'start' ? 'startDate' : 'endDate']: newIso })
   }
 
-  const CustomInput = forwardRef(({ value, onClick, placeholder, icon }: any, ref: any) => (
+  // eslint-disable-next-line react/display-name
+  const CustomInput = forwardRef<HTMLDivElement, CustomInputProps>(({ value, onClick, placeholder, icon }, ref) => (
     <div onClick={onClick} ref={ref} className="relative w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 cursor-pointer hover:border-zinc-600 transition-colors flex items-center justify-between gap-3 h-[38px]">
         <span className={`text-xs ${value ? 'text-zinc-300' : 'text-zinc-600'}`}>{value || placeholder}</span>
         <div className="text-zinc-500">{icon}</div>
     </div>
   ))
-  CustomInput.displayName = 'CustomInput'
 
   const handleAdd = () => {
     if (!newTicketForm.name || (newTicketForm.type === 'paid' && !newTicketForm.price)) return

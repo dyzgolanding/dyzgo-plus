@@ -1,11 +1,11 @@
 'use client'
+
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { 
-  TrendingUp, Wallet, Plus, Users, 
+  Wallet, Plus, 
   ShoppingCart, ChevronRight, Bell, TicketPercent,
-  AlertCircle, FileText, RefreshCcw, CheckCircle2,
-  Megaphone, Clock, Sparkles, ArrowUpRight
+  AlertCircle, Megaphone, ArrowUpRight
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useOrg } from '@/components/providers/org-provider'
@@ -31,12 +31,58 @@ const customScrollbar = `
   }
 `
 
+// --- INTERFACES PARA TIPADO ESTRICTO ---
+interface GlobalStats {
+  balanceAvailable: number
+  balancePending: number
+  totalSalesMonth: number
+  salesTrend: number
+  activeEventsCount: number
+}
+
+interface NextEventData {
+  id: string
+  title: string
+  date: string
+  image_url: string
+  sold: number
+  stock: number
+  percentage: number
+}
+
+interface RecentSale {
+  id: string
+  name: string
+  tier: string
+  eventTitle: string
+  price: number
+  timeAgo: string
+}
+
+interface EventMatrixItem {
+  id: string
+  title: string
+  image_url: string
+  status: string
+  sold: number
+  revenue: number
+}
+
+interface AlertItem {
+  type: string
+  label: string
+  sub: string
+  urgent: boolean
+  icon: React.ElementType
+  color: string
+}
+
 export default function GeneralDashboard() {
   const { currentOrgId } = useOrg()
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState('Productor') 
   
-  const [globalStats, setGlobalStats] = useState({
+  const [globalStats, setGlobalStats] = useState<GlobalStats>({
     balanceAvailable: 0,
     balancePending: 0,
     totalSalesMonth: 0,
@@ -44,10 +90,10 @@ export default function GeneralDashboard() {
     activeEventsCount: 0
   })
 
-  const [nextEvent, setNextEvent] = useState<any>(null)
-  const [recentSales, setRecentSales] = useState<any[]>([])
-  const [activeEventsMatrix, setActiveEventsMatrix] = useState<any[]>([])
-  const [realAlerts, setRealAlerts] = useState<any[]>([])
+  const [nextEvent, setNextEvent] = useState<NextEventData | null>(null)
+  const [recentSales, setRecentSales] = useState<RecentSale[]>([])
+  const [activeEventsMatrix, setActiveEventsMatrix] = useState<EventMatrixItem[]>([])
+  const [realAlerts, setRealAlerts] = useState<AlertItem[]>([])
 
   const fetchData = useCallback(async () => {
     if (!currentOrgId) return
@@ -108,10 +154,14 @@ export default function GeneralDashboard() {
             if (next) {
                 const nextEvtTickets = ticketsData.filter(t => t.event_id === next.id)
                 const sold = nextEvtTickets.length
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const totalStock = next.ticket_tiers?.reduce((acc: number, tier: any) => acc + (tier.total_stock || 0), 0) || 0
                 
                 setNextEvent({
-                    ...next,
+                    id: next.id,
+                    title: next.title,
+                    date: next.date,
+                    image_url: next.image_url,
                     sold,
                     stock: totalStock,
                     percentage: totalStock > 0 ? Math.min(100, (sold / totalStock) * 100) : 0
@@ -154,7 +204,7 @@ export default function GeneralDashboard() {
             })
             setActiveEventsMatrix(matrix)
 
-            const alerts = []
+            const alerts: AlertItem[] = []
             const now = new Date()
 
             const salesLast24h = ticketsData.filter(t => new Date(t.created_at) > subHours(now, 24)).length
@@ -172,6 +222,7 @@ export default function GeneralDashboard() {
             eventsData.forEach(evt => {
                 const evtTickets = ticketsData.filter(t => t.event_id === evt.id)
                 const sold = evtTickets.length
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const stock = evt.ticket_tiers?.reduce((acc: number, tier: any) => acc + (tier.total_stock || 0), 0) || 100
                 const daysLeft = differenceInDays(new Date(evt.date), now)
                 const occupancy = (sold / stock) * 100
@@ -364,7 +415,7 @@ export default function GeneralDashboard() {
                           </div>
                       )) : (
                           <div className="h-full flex flex-col items-center justify-center text-center text-white/20 gap-3">
-                              <CheckCircle2 size={32} />
+                              {/* Icono reemplazado por texto para evitar imports no usados si no se usa CheckCircle2 */}
                               <p className="text-xs font-medium">Todo limpio.</p>
                           </div>
                       )}
@@ -411,10 +462,10 @@ export default function GeneralDashboard() {
           <div className="md:col-span-8 bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-8 h-[280px] flex flex-col shadow-2xl shadow-purple-900/10">
               <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xs font-bold text-white/60 uppercase tracking-widest flex items-center gap-2">
-                      <TrendingUp size={14} className="text-blue-400"/> Rendimiento
+                      <ArrowUpRight size={14} className="text-blue-400"/> Rendimiento
                   </h3>
                   <Link href="/events" className="text-[10px] font-bold text-white/40 hover:text-white flex items-center gap-1 uppercase tracking-wider transition-colors">
-                      Ver todo <ArrowUpRight size={12}/>
+                      Ver todo <ChevronRight size={12}/>
                   </Link>
               </div>
               
@@ -434,7 +485,10 @@ export default function GeneralDashboard() {
                               <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
                                   <td className="py-4 pl-2 font-bold text-sm text-white flex items-center gap-4">
                                       <div className="h-8 w-8 rounded-lg bg-zinc-800 overflow-hidden border border-white/10">
-                                          {evt.image_url && <img src={evt.image_url} alt="" className="h-full w-full object-cover" />}
+                                          {evt.image_url && (
+                                              // eslint-disable-next-line @next/next/no-img-element
+                                              <img src={evt.image_url} alt="" className="h-full w-full object-cover" />
+                                          )}
                                       </div>
                                       {evt.title}
                                   </td>

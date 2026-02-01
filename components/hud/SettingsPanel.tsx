@@ -1,19 +1,59 @@
 'use client'
 import { useEventStore } from '@/store/useEventStore'
 import { supabase } from '@/lib/supabase' 
-import { Settings, Lock, Unlock, DollarSign, Eye, ShieldCheck, TrendingUp, FileText } from 'lucide-react'
+import { DollarSign, Eye, ShieldCheck, FileText } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
+// --- INTERFACES PARA TIPADO STRICT ---
+interface Ticket {
+  price: number
+  quantity: number
+}
+
+interface EventSettings {
+  allowMarketplace: boolean
+  allowOverprice: boolean
+  [key: string]: unknown
+}
+
+interface EventData {
+  id?: string
+  status?: string
+  tickets?: Ticket[]
+  settings: EventSettings
+  [key: string]: unknown
+}
+
+interface StoreState {
+  eventData: EventData
+  // updateSettings acepta un parcial de settings o propiedades directas como isPrivate
+  updateSettings: (settings: Partial<EventSettings> | { isPrivate?: boolean }) => void
+}
+
+interface ToggleButtonProps {
+  active: boolean
+  onClick: () => void
+}
+
+interface VisibilityBtnProps {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+  desc: string
+  disabled: boolean
+}
+
 export default function SettingsPanel() {
-  const { eventData, updateSettings } = useEventStore()
+  // Casting seguro para evitar errores de tipo con el store global
+  const { eventData, updateSettings } = useEventStore() as unknown as StoreState
+  
   const [updating, setUpdating] = useState(false)
   
-  // ESTADO LOCAL: Inicializamos en null para no asumir nada hasta confirmar con la DB
+  // ESTADO LOCAL
   const [currentStatus, setCurrentStatus] = useState<string | null>(null)
 
   // 1. EFECTO DE VERDAD ABSOLUTA
-  // Al montar el componente, preguntamos directamente a la base de datos cómo está el evento.
-  // Esto corrige el error de que el store pueda tener datos viejos o incompletos.
   useEffect(() => {
     const fetchRealStatus = async () => {
         if (!eventData?.id) return
@@ -27,27 +67,27 @@ export default function SettingsPanel() {
         if (data && !error) {
             setCurrentStatus(data.status)
         } else {
-            // Fallback: si falla la carga, usamos lo que diga el store o 'draft' por seguridad
+            // Fallback
             setCurrentStatus(eventData.status || 'draft')
         }
     }
 
     fetchRealStatus()
-  }, [eventData?.id]) // Se ejecuta cuando tenemos el ID del evento
+  }, [eventData?.id, eventData.status]) 
 
-  const totalRevenue = eventData.tickets?.reduce((acc: number, ticket: any) => acc + (ticket.price * ticket.quantity), 0) || 0
+  const totalRevenue = eventData.tickets?.reduce((acc, ticket) => acc + (ticket.price * ticket.quantity), 0) || 0
 
   const handleStatusChange = async (targetStatus: 'active' | 'draft') => {
     if (updating || !eventData.id) return
     setUpdating(true)
     
-    // UI Optimista: Actualizamos visualmente de inmediato
+    // UI Optimista
     setCurrentStatus(targetStatus)
 
     const isPrivate = targetStatus === 'draft'
 
     try {
-        // 1. Actualizamos Store (para mantener consistencia si navegas)
+        // 1. Actualizamos Store
         updateSettings({ isPrivate })
 
         // 2. Actualizamos Base de Datos
@@ -68,9 +108,7 @@ export default function SettingsPanel() {
     }
   }
 
-  // Lógica de visualización:
-  // Es "Público" si el status es 'active' o 'published'
-  // Es "Borrador" si es cualquier otra cosa o null (por seguridad)
+  // Lógica de visualización
   const isPublic = currentStatus === 'active' || currentStatus === 'published'
 
   return (
@@ -136,7 +174,7 @@ export default function SettingsPanel() {
   )
 }
 
-function ToggleButton({ active, onClick }: any) {
+function ToggleButton({ active, onClick }: ToggleButtonProps) {
     return (
         <button onClick={onClick} className={`w-10 h-5 rounded-full transition-all relative ${active ? 'bg-purple-600' : 'bg-zinc-800'}`}>
             <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${active ? 'left-6' : 'left-1'}`} />
@@ -144,7 +182,7 @@ function ToggleButton({ active, onClick }: any) {
     )
 }
 
-function VisibilityBtn({ active, onClick, icon, label, desc, disabled }: any) {
+function VisibilityBtn({ active, onClick, icon, label, desc, disabled }: VisibilityBtnProps) {
     return (
         <button 
             onClick={onClick} 

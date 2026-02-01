@@ -1,12 +1,72 @@
 'use client'
+
 import { useState, useEffect, useRef } from 'react'
 import { 
   Camera, Building2, Globe, Instagram, CreditCard, Save, History, 
   CheckCircle2, Clock, FileText, Loader2, AlertCircle, ChevronDown, Trash2, AlertTriangle, Image as ImageIcon,
-  Facebook, Palette, LayoutTemplate, Check, Sparkles, Settings
+  Palette, LayoutTemplate, Check
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useOrg } from '@/components/providers/org-provider'
+
+// --- INTERFACES PARA TIPADO ---
+interface ProfileData {
+  name: string
+  website_url: string
+  instagram_handle: string
+  description: string
+  primary_color: string
+  logo_url: string
+  banner_url: string
+}
+
+interface FinancialData {
+  bank_name: string
+  account_type: string
+  account_number: string
+  bank_rut: string
+  bank_holder_name: string
+  bank_email: string
+  billing_name: string
+  billing_rut: string
+  billing_address: string
+  billing_city: string
+  billing_email: string
+}
+
+interface Payout {
+  id: string
+  status: string
+  amount: number
+  created_at: string
+  concept?: string
+}
+
+// Props para componentes hijos
+interface NavButtonProps {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+}
+
+interface InputGroupProps {
+  label: string
+  icon?: React.ReactNode
+  placeholder?: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  disabled?: boolean
+}
+
+interface CustomSelectProps {
+  label: string
+  options: string[]
+  placeholder: string
+  value: string
+  onChange: (val: string) => void
+  disabled?: boolean
+}
 
 const BANKS_CHILE = ["Banco de Chile", "Banco Santander", "Banco Estado", "Scotiabank", "Bci", "Itaú", "Banco Bice", "Banco Security", "Banco Consorcio", "Banco Falabella", "Banco Ripley", "Tenpo", "Mach", "Coopeuch", "Mercado Pago"]
 const ACCOUNT_TYPES = ["Cuenta Corriente", "Cuenta Vista / RUT", "Cuenta de Ahorro", "Chequera Electrónica"]
@@ -31,7 +91,7 @@ const REGIONES_CHILE: Record<string, string[]> = {
 
 const formatRut = (rut: string) => {
   if (!rut) return ''
-  let cleanRut = rut.replace(/[^0-9kK]/g, '').toUpperCase()
+  const cleanRut = rut.replace(/[^0-9kK]/g, '').toUpperCase()
   if (cleanRut.length <= 1) return cleanRut
   const body = cleanRut.slice(0, -1)
   const dv = cleanRut.slice(-1)
@@ -52,17 +112,18 @@ export default function SettingsPage() {
   const isEditable = isCreating || currentRole === 'owner' || currentRole === 'admin'
   const isOwner = currentRole === 'owner'
 
-  const [profile, setProfile] = useState({
+  // Tipado estricto en el estado
+  const [profile, setProfile] = useState<ProfileData>({
     name: '', website_url: '', instagram_handle: '', description: '', primary_color: '#8B5CF6', 
     logo_url: '', banner_url: '' 
   })
 
-  const [financialData, setFinancialData] = useState({
+  const [financialData, setFinancialData] = useState<FinancialData>({
     bank_name: '', account_type: '', account_number: '', bank_rut: '', bank_holder_name: '', bank_email: '',
     billing_name: '', billing_rut: '', billing_address: '', billing_city: '', billing_email: ''
   })
 
-  const [payouts, setPayouts] = useState<any[]>([])
+  const [payouts, setPayouts] = useState<Payout[]>([])
 
   useEffect(() => {
       if (isCreating) {
@@ -133,6 +194,7 @@ export default function SettingsPage() {
         }
 
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(error)
       } finally {
         setLoading(false)
@@ -141,7 +203,7 @@ export default function SettingsPage() {
     fetchData()
   }, [currentOrgId])
 
-  const handleImageUpload = (field: 'logo_url' | 'banner_url') => async (event: any) => {
+  const handleImageUpload = (field: 'logo_url' | 'banner_url') => async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setUploading(true)
       if (!event.target.files || event.target.files.length === 0) return
@@ -157,8 +219,9 @@ export default function SettingsPage() {
       
       setProfile(prev => ({ ...prev, [field]: publicUrl }))
       alert('Imagen subida correctamente. No olvides "Guardar Cambios".')
-    } catch (error: any) {
-      alert('Error: ' + error.message)
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error desconocido'
+      alert('Error: ' + msg)
     } finally {
       setUploading(false)
     }
@@ -207,8 +270,9 @@ export default function SettingsPage() {
         }
 
         alert(isCreating ? 'Productora creada correctamente ✅' : 'Configuración guardada correctamente ✅')
-    } catch (error: any) {
-        alert('Error al guardar: ' + error.message)
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Error desconocido'
+        alert('Error al guardar: ' + msg)
     } finally {
         setSaving(false)
     }
@@ -226,8 +290,9 @@ export default function SettingsPage() {
           setDeleting(true)
           await deleteOrg(currentOrgId)
           alert("Productora eliminada correctamente.")
-      } catch (error: any) {
-          alert("Error al eliminar: " + error.message)
+      } catch (error: unknown) {
+          const msg = error instanceof Error ? error.message : 'Error desconocido'
+          alert("Error al eliminar: " + msg)
           setDeleting(false)
       }
   }
@@ -249,7 +314,7 @@ export default function SettingsPage() {
     // CONTENEDOR LIMPIO (Sin fondo, ya está en el Layout)
     <div className="relative z-10 max-w-5xl mx-auto space-y-8 animate-in fade-in pt-0">
         
-        {/* --- HEADER MODIFICADO (Sin "Configuration" y menos padding) --- */}
+        {/* --- HEADER MODIFICADO --- */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/5 pb-6">
             <div>
                 <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-1">
@@ -289,12 +354,13 @@ export default function SettingsPage() {
                 {/* SECCIÓN PERFIL */}
                 {activeTab === 'profile' && (
                     <section className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                        {/* Preview Card ACHICADA (h-40 banner, h-24 logo, pb-6 padding, rounded-2rem) */}
+                        {/* Preview Card */}
                         <div className="relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl shadow-purple-900/10 overflow-hidden pb-6"> 
                             
-                            {/* Banner MÁS CHICO (h-40) */}
+                            {/* Banner */}
                             <div className="h-40 w-full bg-black/40 border-b border-white/5 relative overflow-hidden group">
                                 {profile.banner_url ? (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
                                     <img src={profile.banner_url} alt="Banner" className="h-full w-full object-cover opacity-80 transition-transform duration-700 group-hover:scale-105" />
                                 ) : (
                                     <div className="absolute inset-0 flex items-center justify-center opacity-10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
@@ -317,11 +383,12 @@ export default function SettingsPage() {
                                 )}
                             </div>
 
-                            {/* Logo & Info MÁS CHICOS (h-24 w-24, -mt-12) */}
+                            {/* Logo & Info */}
                             <div className="px-8 relative -mt-12 flex flex-col items-center text-center">
                                 <div className="relative group">
                                     <div className="h-24 w-24 rounded-2xl bg-[#030005] border-[3px] border-[#030005] flex items-center justify-center overflow-hidden shadow-2xl relative">
                                         {profile.logo_url ? (
+                                            /* eslint-disable-next-line @next/next/no-img-element */
                                             <img src={profile.logo_url} alt="Logo" className="h-full w-full object-cover" />
                                         ) : (
                                             <Building2 size={24} className="text-white/20" />
@@ -383,7 +450,7 @@ export default function SettingsPage() {
                                     icon={<Building2 size={14} />} 
                                     placeholder="Ej: DyzGO Producciones" 
                                     value={profile.name} 
-                                    onChange={(e: any) => setProfile({...profile, name: e.target.value})} 
+                                    onChange={(e) => setProfile({...profile, name: e.target.value})} 
                                     disabled={!isEditable && !isCreating} 
                                 />
                                 <div className="space-y-2">
@@ -408,7 +475,7 @@ export default function SettingsPage() {
                                         icon={<Globe size={14} />} 
                                         placeholder="https://tuweb.cl" 
                                         value={profile.website_url} 
-                                        onChange={(e: any) => setProfile({...profile, website_url: e.target.value})} 
+                                        onChange={(e) => setProfile({...profile, website_url: e.target.value})} 
                                         disabled={!isEditable && !isCreating} 
                                     />
                                     <InputGroup 
@@ -416,7 +483,7 @@ export default function SettingsPage() {
                                         icon={<Instagram size={14} />} 
                                         placeholder="@tu_productora" 
                                         value={profile.instagram_handle} 
-                                        onChange={(e: any) => setProfile({...profile, instagram_handle: e.target.value})} 
+                                        onChange={(e) => setProfile({...profile, instagram_handle: e.target.value})} 
                                         disabled={!isEditable && !isCreating} 
                                     />
                                 </div>
@@ -461,31 +528,31 @@ export default function SettingsPage() {
                                 <CreditCard size={14} className="text-[#00D15B]" /> Datos Bancarios
                             </h3>
                             <div className="grid grid-cols-2 gap-6">
-                                <CustomSelect label="Banco" options={BANKS_CHILE} placeholder="Seleccionar Banco" value={financialData.bank_name} onChange={(val: string) => setFinancialData({...financialData, bank_name: val})} disabled={!isEditable && !isCreating} />
-                                <CustomSelect label="Tipo de Cuenta" options={ACCOUNT_TYPES} placeholder="Seleccionar Tipo" value={financialData.account_type} onChange={(val: string) => setFinancialData({...financialData, account_type: val})} disabled={!isEditable && !isCreating} />
+                                <CustomSelect label="Banco" options={BANKS_CHILE} placeholder="Seleccionar Banco" value={financialData.bank_name} onChange={(val) => setFinancialData({...financialData, bank_name: val})} disabled={!isEditable && !isCreating} />
+                                <CustomSelect label="Tipo de Cuenta" options={ACCOUNT_TYPES} placeholder="Seleccionar Tipo" value={financialData.account_type} onChange={(val) => setFinancialData({...financialData, account_type: val})} disabled={!isEditable && !isCreating} />
                             </div>
-                            <InputGroup label="Número de Cuenta" placeholder="Ej: 12345678" value={financialData.account_number} onChange={(e: any) => setFinancialData({...financialData, account_number: e.target.value.replace(/\D/g, '').slice(0, 20)})} disabled={!isEditable && !isCreating} />
+                            <InputGroup label="Número de Cuenta" placeholder="Ej: 12345678" value={financialData.account_number} onChange={(e) => setFinancialData({...financialData, account_number: e.target.value.replace(/\D/g, '').slice(0, 20)})} disabled={!isEditable && !isCreating} />
                             <div className="grid grid-cols-2 gap-6">
-                                <InputGroup label="RUT Titular" placeholder="12.345.678-9" value={financialData.bank_rut} onChange={(e: any) => handleRutChange('bank_rut', e.target.value)} disabled={!isEditable && !isCreating} />
-                                <InputGroup label="Nombre Titular" placeholder="Razón Social o Nombre" value={financialData.bank_holder_name} onChange={(e: any) => setFinancialData({...financialData, bank_holder_name: e.target.value})} disabled={!isEditable && !isCreating} />
+                                <InputGroup label="RUT Titular" placeholder="12.345.678-9" value={financialData.bank_rut} onChange={(e) => handleRutChange('bank_rut', e.target.value)} disabled={!isEditable && !isCreating} />
+                                <InputGroup label="Nombre Titular" placeholder="Razón Social o Nombre" value={financialData.bank_holder_name} onChange={(e) => setFinancialData({...financialData, bank_holder_name: e.target.value})} disabled={!isEditable && !isCreating} />
                             </div>
-                            <InputGroup label="Email Comprobantes" placeholder="finanzas@productora.cl" value={financialData.bank_email} onChange={(e: any) => setFinancialData({...financialData, bank_email: e.target.value})} disabled={!isEditable && !isCreating} />
+                            <InputGroup label="Email Comprobantes" placeholder="finanzas@productora.cl" value={financialData.bank_email} onChange={(e) => setFinancialData({...financialData, bank_email: e.target.value})} disabled={!isEditable && !isCreating} />
                         </div>
 
                         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 space-y-6 shadow-xl">
                             <h3 className="text-xs font-bold text-white/60 flex items-center gap-2 uppercase tracking-widest mb-2">
                                 <FileText size={14} className="text-[#3b82f6]" /> Datos de Facturación
                             </h3>
-                            <InputGroup label="Razón Social" placeholder="Nombre de la empresa" value={financialData.billing_name} onChange={(e: any) => setFinancialData({...financialData, billing_name: e.target.value})} disabled={!isEditable && !isCreating} />
+                            <InputGroup label="Razón Social" placeholder="Nombre de la empresa" value={financialData.billing_name} onChange={(e) => setFinancialData({...financialData, billing_name: e.target.value})} disabled={!isEditable && !isCreating} />
                             <div className="grid grid-cols-2 gap-6">
-                                <CustomSelect label="Región" options={Object.keys(REGIONES_CHILE)} placeholder="Seleccionar Región" value={billingRegionFilter} onChange={(val: string) => { setBillingRegionFilter(val); setFinancialData({...financialData, billing_city: ''}) }} disabled={!isEditable && !isCreating} />
-                                <CustomSelect label="Comuna" options={billingRegionFilter ? REGIONES_CHILE[billingRegionFilter] : []} placeholder={billingRegionFilter ? "Seleccionar Comuna" : "Seleccione Región"} value={financialData.billing_city} disabled={(!billingRegionFilter || (!isEditable && !isCreating))} onChange={(val: string) => setFinancialData({...financialData, billing_city: val})} />
+                                <CustomSelect label="Región" options={Object.keys(REGIONES_CHILE)} placeholder="Seleccionar Región" value={billingRegionFilter} onChange={(val) => { setBillingRegionFilter(val); setFinancialData({...financialData, billing_city: ''}) }} disabled={!isEditable && !isCreating} />
+                                <CustomSelect label="Comuna" options={billingRegionFilter ? REGIONES_CHILE[billingRegionFilter] : []} placeholder={billingRegionFilter ? "Seleccionar Comuna" : "Seleccione Región"} value={financialData.billing_city} disabled={(!billingRegionFilter || (!isEditable && !isCreating))} onChange={(val) => setFinancialData({...financialData, billing_city: val})} />
                             </div>
                             <div className="grid grid-cols-2 gap-6">
-                                <InputGroup label="RUT Empresa" placeholder="76.xxx.xxx-x" value={financialData.billing_rut} onChange={(e: any) => handleRutChange('billing_rut', e.target.value)} disabled={!isEditable && !isCreating} />
-                                <InputGroup label="Email Facturación" placeholder="dte@empresa.cl" value={financialData.billing_email} onChange={(e: any) => setFinancialData({...financialData, billing_email: e.target.value})} disabled={!isEditable && !isCreating} />
+                                <InputGroup label="RUT Empresa" placeholder="76.xxx.xxx-x" value={financialData.billing_rut} onChange={(e) => handleRutChange('billing_rut', e.target.value)} disabled={!isEditable && !isCreating} />
+                                <InputGroup label="Email Facturación" placeholder="dte@empresa.cl" value={financialData.billing_email} onChange={(e) => setFinancialData({...financialData, billing_email: e.target.value})} disabled={!isEditable && !isCreating} />
                             </div>
-                            <InputGroup label="Dirección Tributaria" placeholder="Av. Providencia 1234" value={financialData.billing_address} onChange={(e: any) => setFinancialData({...financialData, billing_address: e.target.value})} disabled={!isEditable && !isCreating} />
+                            <InputGroup label="Dirección Tributaria" placeholder="Av. Providencia 1234" value={financialData.billing_address} onChange={(e) => setFinancialData({...financialData, billing_address: e.target.value})} disabled={!isEditable && !isCreating} />
                         </div>
                     </section>
                 )}
@@ -561,7 +628,7 @@ export default function SettingsPage() {
 
 // --- SUB-COMPONENTES ESTILIZADOS ---
 
-function NavButton({ active, onClick, icon, label }: any) {
+function NavButton({ active, onClick, icon, label }: NavButtonProps) {
     return (
         <button 
             onClick={onClick} 
@@ -576,7 +643,7 @@ function NavButton({ active, onClick, icon, label }: any) {
     )
 }
 
-function InputGroup({ label, icon, placeholder, value, onChange, disabled }: any) {
+function InputGroup({ label, icon, placeholder, value, onChange, disabled }: InputGroupProps) {
     return (
         <div className="space-y-2">
             <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider flex items-center gap-2 ml-1">
@@ -594,7 +661,7 @@ function InputGroup({ label, icon, placeholder, value, onChange, disabled }: any
     )
 }
 
-function CustomSelect({ label, options, placeholder, value, onChange, disabled }: any) {
+function CustomSelect({ label, options, placeholder, value, onChange, disabled }: CustomSelectProps) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 

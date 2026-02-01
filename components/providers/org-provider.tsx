@@ -3,16 +3,32 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+// --- INTERFACES PARA TIPADO ESTRICTO ---
+interface Organization {
+  id: string
+  name: string
+  logo_url: string | null
+  role: 'owner' | 'admin' | 'finance' | 'staff'
+  is_owner: boolean
+}
+
+interface PendingInvite {
+  invite_id: string
+  name: string
+  role: string
+  logo_url?: string | null
+}
+
 interface OrgContextType {
   currentOrgId: string | null
   currentRole: 'owner' | 'admin' | 'finance' | 'staff'
-  availableOrgs: any[]
-  pendingInvites: any[]
+  availableOrgs: Organization[]
+  pendingInvites: PendingInvite[]
   switchOrg: (orgId: string) => void
   createNewOrg: () => void
   deleteOrg: (orgId: string) => Promise<void>
   acceptInvite: (inviteId: string) => Promise<void>
-  rejectInvite: (inviteId: string) => Promise<void> // NUEVA FUNCIÓN
+  rejectInvite: (inviteId: string) => Promise<void>
   refreshOrgs: () => Promise<void>
   isLoading: boolean
 }
@@ -26,16 +42,16 @@ const OrgContext = createContext<OrgContextType>({
   createNewOrg: () => {},
   deleteOrg: async () => {},
   acceptInvite: async () => {},
-  rejectInvite: async () => {}, // Inicialización
+  rejectInvite: async () => {},
   refreshOrgs: async () => {},
   isLoading: true
 })
 
 export function OrgProvider({ children }: { children: React.ReactNode }) {
   const [currentOrgId, setCurrentOrgId] = useState<string | null>(null)
-  const [currentRole, setCurrentRole] = useState<any>('owner')
-  const [availableOrgs, setAvailableOrgs] = useState<any[]>([])
-  const [pendingInvites, setPendingInvites] = useState<any[]>([])
+  const [currentRole, setCurrentRole] = useState<'owner' | 'admin' | 'finance' | 'staff'>('owner')
+  const [availableOrgs, setAvailableOrgs] = useState<Organization[]>([])
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
 
@@ -63,21 +79,39 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
         `)
         .or(`user_id.eq.${user.id},email.eq.${user.email}`)
 
-      const activeOrgs: any[] = []
-      const pending: any[] = []
+      const activeOrgs: Organization[] = []
+      const pending: PendingInvite[] = []
 
       if (myOrgs) {
-        myOrgs.forEach(org => activeOrgs.push({ ...org, role: 'owner', is_owner: true }))
+        myOrgs.forEach(org => activeOrgs.push({ 
+            id: org.id,
+            name: org.name,
+            logo_url: org.logo_url,
+            role: 'owner', 
+            is_owner: true 
+        }))
       }
 
       if (teamData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         teamData.forEach((item: any) => {
             if (item.experience) {
                 if (!activeOrgs.find(o => o.id === item.experience.id)) {
                     if (item.status === 'active') {
-                        activeOrgs.push({ ...item.experience, role: item.role, is_owner: false })
+                        activeOrgs.push({ 
+                            id: item.experience.id,
+                            name: item.experience.name,
+                            logo_url: item.experience.logo_url,
+                            role: item.role, 
+                            is_owner: false 
+                        })
                     } else if (item.status === 'pending') {
-                        pending.push({ ...item.experience, invite_id: item.id, role: item.role, name: item.experience.name })
+                        pending.push({ 
+                            invite_id: item.id, 
+                            role: item.role, 
+                            name: item.experience.name,
+                            logo_url: item.experience.logo_url 
+                        })
                     }
                 }
             }
@@ -133,7 +167,7 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
           setCurrentOrgId(null)
           await fetchOrganizations()
           router.push('/')
-      } catch (error: any) {
+      } catch (error) {
           throw error
       }
   }
@@ -148,15 +182,15 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
         
         if (error) throw error
         
-        // RECARGA CRÍTICA: Esto actualiza availableOrgs para que aparezca en el select
+        // RECARGA CRÍTICA
         await fetchOrganizations() 
         alert("¡Invitación aceptada! Ya puedes seleccionar la productora en el menú.")
-    } catch (e: any) {
-        alert("Error al aceptar: " + e.message)
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Error desconocido'
+        alert("Error al aceptar: " + msg)
     }
   }
 
-  // NUEVA FUNCIÓN: Rechazar (Borrar)
   const rejectInvite = async (inviteId: string) => {
     if(!confirm("¿Estás seguro de rechazar esta invitación?")) return
     try {
@@ -167,10 +201,11 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
         
         if (error) throw error
         
-        await fetchOrganizations() // Recargar listas
+        await fetchOrganizations()
         alert("Invitación rechazada.")
-    } catch (e: any) {
-        alert("Error al rechazar: " + e.message)
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Error desconocido'
+        alert("Error al rechazar: " + msg)
     }
   }
 

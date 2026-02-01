@@ -1,10 +1,32 @@
 'use client'
-import { LayoutDashboard, Ticket, BarChart3, Settings, User, LogOut, Plus, Bell, Check, ChevronDown, X, ShieldAlert } from 'lucide-react'
+
+import { LayoutDashboard, Ticket, BarChart3, Settings, LogOut, Plus, Bell, Check, ChevronDown, X, ShieldAlert } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useEffect, useState, useRef } from 'react'
 import { OrgProvider, useOrg } from '@/components/providers/org-provider'
+
+// --- INTERFACES PARA TIPADO ---
+interface OrgData {
+  id: string
+  name: string
+  role: string
+  is_owner: boolean
+}
+
+interface InviteData {
+  invite_id: string
+  name: string
+  role: string
+}
+
+interface SidebarLinkProps {
+  href: string
+  icon: React.ReactNode
+  label: string
+  active: boolean
+}
 
 // ESTILOS GLOBALES DE SCROLLBAR
 const customScrollbar = `
@@ -60,8 +82,10 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     router.refresh()
   }
 
-  const currentOrgName = availableOrgs.find((o: any) => o.id === currentOrgId)?.name || 'Sin Productora'
-  const currentOrgRole = availableOrgs.find((o: any) => o.id === currentOrgId)?.is_owner ? '(Dueño)' : `(${availableOrgs.find((o: any) => o.id === currentOrgId)?.role})`
+  // Tipado seguro en find
+  const currentOrg = (availableOrgs as OrgData[]).find(o => o.id === currentOrgId)
+  const currentOrgName = currentOrg?.name || 'Sin Productora'
+  const currentOrgRole = currentOrg?.is_owner ? '(Dueño)' : `(${currentOrg?.role || ''})`
 
   if (pathname.includes('/events/create')) {
     return <>{children}</>
@@ -99,7 +123,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                     <Bell size={14} className="animate-bounce" />
                     <span className="text-[10px] font-bold uppercase tracking-wide">Invitación Pendiente</span>
                 </div>
-                {pendingInvites.map((inv) => (
+                {(pendingInvites as InviteData[]).map((inv) => (
                     <div key={inv.invite_id} className="flex justify-between items-center bg-black/40 p-2.5 rounded-lg mb-1 border border-white/5">
                         <div className="overflow-hidden">
                             <p className="text-xs font-bold text-white truncate max-w-[80px]">{inv.name}</p>
@@ -125,7 +149,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
                 {isOrgDropdownOpen && (
                     <div className="absolute top-full left-0 mt-2 w-full bg-[#09090b] border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-64 overflow-y-auto custom-scrollbar">
                         <div className="p-1">
-                            {availableOrgs.map((org: any) => (
+                            {(availableOrgs as OrgData[]).map((org) => (
                                 <button key={org.id} onClick={() => { switchOrg(org.id); setIsOrgDropdownOpen(false); }} className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-between mb-0.5 ${currentOrgId === org.id ? 'bg-purple-500/10 text-purple-400' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}>
                                     <span className="truncate">{org.name || 'Sin Nombre'}</span>
                                     <span className="text-[9px] opacity-70 ml-2 whitespace-nowrap">{org.is_owner ? 'Dueño' : org.role}</span>
@@ -175,7 +199,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SidebarLink({ href, icon, label, active }: any) {
+function SidebarLink({ href, icon, label, active }: SidebarLinkProps) {
     return (
         <Link href={href} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${active ? 'bg-white text-black font-medium shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}>
             {icon}

@@ -1,17 +1,71 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
-import { ShieldAlert, Search, Plus, Filter, AlertTriangle, Ban, FileWarning, CheckCircle2, X, MoreVertical, UserX, Siren, Calendar, MapPin, Trash2, Eye, Mail, ChevronDown, Check, RotateCcw, AlertOctagon, Lock, Sparkles } from 'lucide-react'
+
+import React, { useEffect, useState, useCallback } from 'react'
+import { Search, Plus, Ban, FileWarning, CheckCircle2, X, UserX, Calendar, MapPin, Trash2, Mail, ChevronDown, Check, RotateCcw, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useOrg } from '@/components/providers/org-provider'
 
-const INCIDENT_TYPES = [{ id: 'violence', label: 'Violencia / Agresión', color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20', dot: 'bg-red-500' }, { id: 'fraud', label: 'Estafa / Ticket Falso', color: 'text-[#8A2BE2]', bg: 'bg-[#8A2BE2]/10', border: 'border-[#8A2BE2]/20', dot: 'bg-[#8A2BE2]' }, { id: 'theft', label: 'Robo / Hurto', color: 'text-[#FF007F]', bg: 'bg-[#FF007F]/10', border: 'border-[#FF007F]/20', dot: 'bg-[#FF007F]' }, { id: 'conduct', label: 'Mala Conducta', color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', dot: 'bg-yellow-500' }, { id: 'other', label: 'Otro Motivo', color: 'text-zinc-400', bg: 'bg-white/5', border: 'border-white/10', dot: 'bg-zinc-400' }]
-const formatRut = (value: string) => { let clean = value.replace(/[^0-9kK]/g, '').toUpperCase(); if (clean.length > 9) clean = clean.slice(0, 9); if (clean.length < 2) return clean; const body = clean.slice(0, -1); const dv = clean.slice(-1); return `${body}-${dv}` }
+// --- INTERFACES PARA TIPADO ---
+interface BlacklistCase {
+  id: string
+  name: string
+  rut: string | null
+  email: string | null
+  type: string
+  reason: string | null
+  event_context: string | null
+  status: string
+  created_at: string
+  org_id: string
+}
+
+interface EventItem {
+  title: string
+  location: string | null
+}
+
+interface StatBadgeProps {
+  label: string
+  count: number
+  color: string
+  icon: React.ReactNode
+}
+
+interface DataRowProps {
+  icon: React.ReactNode
+  label: string
+  value: string
+  mono?: boolean
+}
+
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  icon?: React.ReactNode
+  mono?: boolean
+}
+
+// Configuración estática
+const INCIDENT_TYPES = [
+    { id: 'violence', label: 'Violencia / Agresión', color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/20', dot: 'bg-red-500' }, 
+    { id: 'fraud', label: 'Estafa / Ticket Falso', color: 'text-[#8A2BE2]', bg: 'bg-[#8A2BE2]/10', border: 'border-[#8A2BE2]/20', dot: 'bg-[#8A2BE2]' }, 
+    { id: 'theft', label: 'Robo / Hurto', color: 'text-[#FF007F]', bg: 'bg-[#FF007F]/10', border: 'border-[#FF007F]/20', dot: 'bg-[#FF007F]' }, 
+    { id: 'conduct', label: 'Mala Conducta', color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', dot: 'bg-yellow-500' }, 
+    { id: 'other', label: 'Otro Motivo', color: 'text-zinc-400', bg: 'bg-white/5', border: 'border-white/10', dot: 'bg-zinc-400' }
+]
+
+const formatRut = (value: string) => { 
+    let clean = value.replace(/[^0-9kK]/g, '').toUpperCase(); 
+    if (clean.length > 9) clean = clean.slice(0, 9); 
+    if (clean.length < 2) return clean; 
+    const body = clean.slice(0, -1); 
+    const dv = clean.slice(-1); 
+    return `${body}-${dv}` 
+}
 
 export default function BlacklistPage() {
   const { currentOrgId } = useOrg()
   const [loading, setLoading] = useState(true)
-  const [cases, setCases] = useState<any[]>([])
-  const [events, setEvents] = useState<any[]>([]) 
+  const [cases, setCases] = useState<BlacklistCase[]>([])
+  const [events, setEvents] = useState<EventItem[]>([]) 
   const [filter, setFilter] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -20,16 +74,100 @@ export default function BlacklistPage() {
   const fetchBlacklist = useCallback(async () => {
     if (!currentOrgId) return
     setLoading(true)
-    try { const { data, error } = await supabase.from('blacklist').select('*').eq('org_id', currentOrgId).order('created_at', { ascending: false }); if (error) throw error; if (data) setCases(data) } catch (err) { console.error("Error cargando blacklist:", err) } finally { setLoading(false) }
+    try { 
+        const { data, error } = await supabase
+            .from('blacklist')
+            .select('*')
+            .eq('org_id', currentOrgId)
+            .order('created_at', { ascending: false }); 
+        
+        if (error) throw error; 
+        if (data) setCases(data as BlacklistCase[]) 
+    } catch (err) { 
+        console.error("Error cargando blacklist:", err) 
+    } finally { 
+        setLoading(false) 
+    }
   }, [currentOrgId])
 
-  useEffect(() => { if (currentOrgId) { const fetchEvents = async () => { const { data } = await supabase.from('events').select('title, location').eq('experience_id', currentOrgId).order('date', { ascending: false }); if (data) setEvents(data) }; fetchEvents() } }, [currentOrgId])
+  useEffect(() => { 
+      if (currentOrgId) { 
+          const fetchEvents = async () => { 
+              const { data } = await supabase
+                .from('events')
+                .select('title, location')
+                .eq('experience_id', currentOrgId)
+                .order('date', { ascending: false }); 
+              
+              if (data) setEvents(data as EventItem[]) 
+          }; 
+          fetchEvents() 
+      } 
+  }, [currentOrgId])
+
   useEffect(() => { fetchBlacklist() }, [fetchBlacklist])
 
-  const filteredCases = cases.filter(c => (c.name && c.name.toLowerCase().includes(filter.toLowerCase())) || (c.rut && c.rut.includes(filter)) || (c.email && c.email.toLowerCase().includes(filter.toLowerCase())) || (c.reason && c.reason.toLowerCase().includes(filter.toLowerCase())))
-  const handleAddCase = async () => { if (!newCase.name || (!newCase.rut && !newCase.email)) { return alert("Debes ingresar al menos el Nombre y un identificador (RUT o Email).") }; setSubmitting(true); try { const { error } = await supabase.from('blacklist').insert({ org_id: currentOrgId, name: newCase.name, rut: newCase.rut, email: newCase.email.toLowerCase().trim(), type: newCase.type, reason: newCase.notes, event_context: newCase.event, status: 'active' }); if (error) throw error; alert("Usuario agregado a la Blacklist. Se bloquearán sus intentos de compra."); setIsModalOpen(false); setNewCase({ name: '', rut: '', email: '', type: 'violence', notes: '', event: '' }); fetchBlacklist() } catch (error: any) { alert("Error al guardar: " + error.message) } finally { setSubmitting(false) } }
-  const toggleStatus = async (id: string, currentStatus: string) => { const newStatus = currentStatus === 'active' ? 'resolved' : 'active'; try { setCases(cases.map(c => c.id === id ? { ...c, status: newStatus } : c)); const { error } = await supabase.from('blacklist').update({ status: newStatus }).eq('id', id); if (error) throw error } catch (error) { console.error("Error actualizando estado", error); fetchBlacklist() } }
-  const handleDelete = async (id: string) => { if(!confirm("¿Eliminar este registro permanentemente?")) return; try { setCases(cases.filter(c => c.id !== id)); const { error } = await supabase.from('blacklist').delete().eq('id', id); if (error) throw error } catch (error) { alert("No se pudo eliminar"); fetchBlacklist() } }
+  const filteredCases = cases.filter(c => 
+    (c.name && c.name.toLowerCase().includes(filter.toLowerCase())) || 
+    (c.rut && c.rut.includes(filter)) || 
+    (c.email && c.email?.toLowerCase().includes(filter.toLowerCase())) || 
+    (c.reason && c.reason?.toLowerCase().includes(filter.toLowerCase()))
+  )
+
+  const handleAddCase = async () => { 
+      if (!newCase.name || (!newCase.rut && !newCase.email)) { 
+          return alert("Debes ingresar al menos el Nombre y un identificador (RUT o Email).") 
+      }
+      setSubmitting(true); 
+      try { 
+          const { error } = await supabase.from('blacklist').insert({ 
+              org_id: currentOrgId, 
+              name: newCase.name, 
+              rut: newCase.rut, 
+              email: newCase.email.toLowerCase().trim(), 
+              type: newCase.type, 
+              reason: newCase.notes, 
+              event_context: newCase.event, 
+              status: 'active' 
+          }); 
+          
+          if (error) throw error; 
+          alert("Usuario agregado a la Blacklist. Se bloquearán sus intentos de compra."); 
+          setIsModalOpen(false); 
+          setNewCase({ name: '', rut: '', email: '', type: 'violence', notes: '', event: '' }); 
+          fetchBlacklist() 
+      } catch (error: unknown) { 
+          const msg = error instanceof Error ? error.message : 'Error desconocido'
+          alert("Error al guardar: " + msg) 
+      } finally { 
+          setSubmitting(false) 
+      } 
+  }
+
+  const toggleStatus = async (id: string, currentStatus: string) => { 
+      const newStatus = currentStatus === 'active' ? 'resolved' : 'active'; 
+      try { 
+          setCases(cases.map(c => c.id === id ? { ...c, status: newStatus } : c)); 
+          const { error } = await supabase.from('blacklist').update({ status: newStatus }).eq('id', id); 
+          if (error) throw error 
+      } catch (error) { 
+          console.error("Error actualizando estado", error); 
+          fetchBlacklist() 
+      } 
+  }
+
+  const handleDelete = async (id: string) => { 
+      if(!confirm("¿Eliminar este registro permanentemente?")) return; 
+      try { 
+          setCases(cases.filter(c => c.id !== id)); 
+          const { error } = await supabase.from('blacklist').delete().eq('id', id); 
+          if (error) throw error 
+      } catch (error) { 
+          console.error(error);
+          alert("No se pudo eliminar"); 
+          fetchBlacklist() 
+      } 
+  }
 
   return (
     // CONTENEDOR LIMPIO (Sin fondo, ya está en el Layout)
@@ -93,7 +231,7 @@ export default function BlacklistPage() {
             </div>
         )}
 
-        {!loading && filteredCases.length === 0 && (<div className="flex flex-col items-center justify-center py-32 border border-dashed border-white/10 rounded-[3rem] bg-white/5 backdrop-blur-md"><div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/5 shadow-xl"><ShieldAlert size={40} className="text-white/20" /></div><h3 className="text-white font-bold text-xl">Base de datos limpia</h3><p className="text-white/40 text-sm mt-2">No se encontraron registros activos con ese criterio.</p></div>)}
+        {!loading && filteredCases.length === 0 && (<div className="flex flex-col items-center justify-center py-32 border border-dashed border-white/10 rounded-[3rem] bg-white/5 backdrop-blur-md"><div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/5 shadow-xl"><Ban size={40} className="text-white/20" /></div><h3 className="text-white font-bold text-xl">Base de datos limpia</h3><p className="text-white/40 text-sm mt-2">No se encontraron registros activos con ese criterio.</p></div>)}
 
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
@@ -101,10 +239,10 @@ export default function BlacklistPage() {
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-60" />
                   <div className="px-8 py-6 border-b border-white/5 bg-white/5 flex justify-between items-center sticky top-0 z-10 backdrop-blur-xl"><div><h2 className="text-xl font-black text-white flex items-center gap-3 uppercase tracking-tight"><span className="p-2.5 bg-red-500/10 rounded-xl border border-red-500/20 text-red-500 shadow-[0_0_15px_rgba(220,38,38,0.2)]"><FileWarning size={18}/></span> Nuevo Reporte</h2></div><button onClick={() => setIsModalOpen(false)} className="h-10 w-10 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all hover:scale-110"><X size={18}/></button></div>
                   <div className="p-8 overflow-y-auto custom-scrollbar space-y-6 bg-transparent relative z-10">
-                      <div className="space-y-2"><Label>Sujeto del Reporte</Label><Input value={newCase.name} onChange={(e:any) => setNewCase({...newCase, name: e.target.value})} placeholder="Nombre Completo" icon={<UserX size={16}/>} /></div>
-                      <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>RUT</Label><Input value={newCase.rut} onChange={(e:any) => setNewCase({...newCase, rut: formatRut(e.target.value)})} maxLength={12} placeholder="12.345.678-9" mono /></div><div className="space-y-2"><Label>Email</Label><Input type="email" value={newCase.email} onChange={(e:any) => setNewCase({...newCase, email: e.target.value})} placeholder="usuario@email.com" /></div></div>
+                      <div className="space-y-2"><Label>Sujeto del Reporte</Label><Input value={newCase.name} onChange={(e) => setNewCase({...newCase, name: e.target.value})} placeholder="Nombre Completo" icon={<UserX size={16}/>} /></div>
+                      <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label>RUT</Label><Input value={newCase.rut} onChange={(e) => setNewCase({...newCase, rut: formatRut(e.target.value)})} maxLength={12} placeholder="12.345.678-9" mono /></div><div className="space-y-2"><Label>Email</Label><Input type="email" value={newCase.email} onChange={(e) => setNewCase({...newCase, email: e.target.value})} placeholder="usuario@email.com" /></div></div>
                       <div className="space-y-3"><Label>Clasificación del Incidente</Label><div className="grid grid-cols-2 gap-3">{INCIDENT_TYPES.map(type => (<button key={type.id} onClick={() => setNewCase({...newCase, type: type.id})} className={`px-4 py-3.5 rounded-2xl border text-left text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-3 ${newCase.type === type.id ? 'bg-red-500/10 border-red-500/50 text-red-500 shadow-[0_0_15px_rgba(220,38,38,0.15)] ring-1 ring-red-500/50' : 'bg-black/40 border-white/5 text-white/30 hover:bg-white/5 hover:text-white hover:border-white/10'}`}><div className={`w-2 h-2 shrink-0 rounded-full shadow-[0_0_5px_currentColor] ${type.dot}`} />{type.label}</button>))}</div></div>
-                      <div className="space-y-2"><Label>Contexto</Label><div className="relative group"><select value={newCase.event} onChange={(e) => setNewCase({...newCase, event: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-red-500 focus:bg-black/60 outline-none transition-all appearance-none cursor-pointer shadow-sm hover:border-white/20"><option value="" disabled>Seleccionar Evento...</option>{events.map((ev: any) => (<option key={ev.title} value={ev.title}>{ev.title}</option>))}<option value="Otro / Externo">Otro / Externo</option></select><ChevronDown size={16} className="absolute right-5 top-5 text-white/30 pointer-events-none group-hover:text-white transition-colors" /></div></div>
+                      <div className="space-y-2"><Label>Contexto</Label><div className="relative group"><select value={newCase.event} onChange={(e) => setNewCase({...newCase, event: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-red-500 focus:bg-black/60 outline-none transition-all appearance-none cursor-pointer shadow-sm hover:border-white/20"><option value="" disabled>Seleccionar Evento...</option>{events.map((ev) => (<option key={ev.title} value={ev.title}>{ev.title}</option>))}<option value="Otro / Externo">Otro / Externo</option></select><ChevronDown size={16} className="absolute right-5 top-5 text-white/30 pointer-events-none group-hover:text-white transition-colors" /></div></div>
                       <div className="space-y-2"><Label>Evidencia / Notas</Label><textarea value={newCase.notes} onChange={(e) => setNewCase({...newCase, notes: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white focus:border-red-500 focus:bg-black/60 outline-none transition-all h-32 resize-none placeholder:text-white/20 shadow-sm hover:border-white/20" placeholder="Describa los hechos detalladamente..." /></div>
                   </div>
                   <div className="p-6 border-t border-white/5 bg-black/20 backdrop-blur-md"><button onClick={handleAddCase} disabled={submitting} className="w-full py-4 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl transition-all shadow-[0_0_25px_rgba(220,38,38,0.4)] flex items-center justify-center gap-3 text-xs uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98]">{submitting ? <span className="animate-pulse">Procesando...</span> : <><Lock size={16} /> Confirmar Bloqueo</>}</button></div>
@@ -115,7 +253,7 @@ export default function BlacklistPage() {
   )
 }
 
-function StatBadge({ label, count, color, icon }: any) { return <div className="flex items-center gap-3 px-2"><div className={`p-2 rounded-xl bg-white/5 ${color} shadow-sm border border-white/5`}>{icon}</div><div><p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">{label}</p><p className={`text-lg font-black ${color} leading-none`}>{count}</p></div></div> }
-function DataRow({ icon, label, value, mono }: any) { return <div className="flex justify-between items-center text-xs gap-3 w-full"><div className="flex items-center gap-1.5 text-white/40 shrink-0 font-bold uppercase tracking-wider text-[9px]">{icon} <span>{label}</span></div><span className={`text-white/80 font-medium text-right break-all flex-1 ${mono ? 'font-mono tracking-wider' : ''}`} title={value}>{value}</span></div> }
-function Label({ children }: any) { return <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider pl-1 flex items-center gap-1 ml-1">{children}</label> }
-function Input({ icon, mono, ...props }: any) { return <div className="relative group">{icon && <div className="absolute left-5 top-4 text-white/30 pointer-events-none group-focus-within:text-white transition-colors">{icon}</div>}<input {...props} className={`w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:border-red-500 focus:bg-black/60 outline-none transition-all placeholder:text-white/20 shadow-sm hover:border-white/20 ${icon ? 'pl-12' : ''} ${mono ? 'font-mono' : ''}`} /></div> }
+function StatBadge({ label, count, color, icon }: StatBadgeProps) { return <div className="flex items-center gap-3 px-2"><div className={`p-2 rounded-xl bg-white/5 ${color} shadow-sm border border-white/5`}>{icon}</div><div><p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">{label}</p><p className={`text-lg font-black ${color} leading-none`}>{count}</p></div></div> }
+function DataRow({ icon, label, value, mono }: DataRowProps) { return <div className="flex justify-between items-center text-xs gap-3 w-full"><div className="flex items-center gap-1.5 text-white/40 shrink-0 font-bold uppercase tracking-wider text-[9px]">{icon} <span>{label}</span></div><span className={`text-white/80 font-medium text-right break-all flex-1 ${mono ? 'font-mono tracking-wider' : ''}`} title={value}>{value}</span></div> }
+function Label({ children }: { children: React.ReactNode }) { return <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider pl-1 flex items-center gap-1 ml-1">{children}</label> }
+function Input({ icon, mono, ...props }: InputProps) { return <div className="relative group">{icon && <div className="absolute left-5 top-4 text-white/30 pointer-events-none group-focus-within:text-white transition-colors">{icon}</div>}<input {...props} className={`w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3.5 text-sm text-white focus:border-red-500 focus:bg-black/60 outline-none transition-all placeholder:text-white/20 shadow-sm hover:border-white/20 ${icon ? 'pl-12' : ''} ${mono ? 'font-mono' : ''}`} /></div> }

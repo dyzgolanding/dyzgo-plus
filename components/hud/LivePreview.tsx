@@ -4,14 +4,9 @@ import {
   MapPin, 
   Calendar, 
   Clock, 
-  Instagram, 
   Shirt, 
-  Ban, 
-  User, 
-  Ticket, 
   ArrowLeft, 
   Info, 
-  Minus, 
   Plus, 
   Bookmark, 
   Signal, 
@@ -22,7 +17,6 @@ import {
   Layers, 
   ChevronRight,
   ExternalLink,
-  CheckCircle2
 } from 'lucide-react'
 import { useEventStore } from '@/store/useEventStore'
 
@@ -33,33 +27,81 @@ const COLORS = {
   textZinc: '#a1a1aa'
 }
 
-export default function LivePreview() {
-  // @ts-ignore
-  const { eventData, activeSection } = useEventStore()
+// --- INTERFACES PARA TIPADO STRICT ---
+interface Ticket {
+  id: string
+  price: number
+  name: string
+  isActive?: boolean
+  quantity: number
+  sold?: number
+  isGhostSoldOut?: boolean
+}
 
-  // @ts-ignore
+interface EventData {
+  themeColor: string
+  themeColorEnd?: string
+  accentColor?: string
+  borderRadius?: string
+  fontStyle?: string
+  cardBackgroundColor?: string
+  borderColor?: string
+  coverImage?: string
+  name?: string
+  venue?: string
+  date?: string
+  startTime?: string
+  endTime?: string
+  category?: string
+  description?: string
+  minAgeWomen?: number
+  minAgeMen?: number
+  dressCode?: string
+  address?: string
+  tickets: Ticket[]
+  [key: string]: unknown
+}
+
+interface StoreState {
+  eventData: EventData
+  activeSection: string
+}
+
+interface TicketPreviewProps {
+  eventData: EventData
+  accent: string
+  radius: string
+  font: string
+  cardBg: string
+  borderCol: string
+}
+
+export default function LivePreview() {
+  // Casting seguro para evitar @ts-ignore
+  const { eventData, activeSection } = useEventStore() as unknown as StoreState
+
+  // Valores con fallback seguros
   const accent = eventData.accentColor || '#d946ef' 
-  // @ts-ignore
   const radius = eventData.borderRadius || 'rounded-[2rem]' 
-  // @ts-ignore
   const font = eventData.fontStyle || 'font-sans'
   
   // COLORES DINÁMICOS
-  const cardBg = (eventData as any).cardBackgroundColor || '#1a0b2e'
-  const borderCol = (eventData as any).borderColor || '#8A2BE2'
+  const cardBg = eventData.cardBackgroundColor || '#1a0b2e'
+  const borderCol = eventData.borderColor || '#8A2BE2'
 
   if (activeSection === 'tickets') {
     return <TicketSelectionPreview eventData={eventData} accent={accent} radius={radius} font={font} cardBg={cardBg} borderCol={borderCol} />
   }
 
-  const getDay = (dateStr: string) => {
+  const getDay = (dateStr?: string) => {
     if (!dateStr) return '31'
     const date = new Date(dateStr)
+    // Usamos getUTCDate para evitar problemas de zona horaria en visualización simple
     const day = date.getUTCDate()
     return day
   }
 
-  const getMonth = (dateStr: string) => {
+  const getMonth = (dateStr?: string) => {
     if (!dateStr) return 'ENE'
     const months = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
     return months[new Date(dateStr).getUTCMonth()]
@@ -80,7 +122,6 @@ export default function LivePreview() {
       <div 
         className="absolute inset-0 pointer-events-none transition-all duration-700 ease-in-out z-0"
         style={{
-            // @ts-ignore
             background: `linear-gradient(180deg, ${eventData.themeColor} 0%, ${eventData.themeColorEnd || '#090014'} 100%)`,
         }}
       />
@@ -102,7 +143,7 @@ export default function LivePreview() {
           </div>
       </div>
 
-      {/* HEADER FLOTANTE (Usando cardBg y borderCol para el botón, pero Icono BLANCO) */}
+      {/* HEADER FLOTANTE */}
       <div className="absolute top-14 left-0 w-full px-5 flex justify-between items-center z-50 pointer-events-none">
           <div 
             className="w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center border"
@@ -124,6 +165,7 @@ export default function LivePreview() {
           <div className="px-5 mb-6">
               <div className="aspect-square w-full rounded-[2.5rem] overflow-hidden relative bg-zinc-900 border border-white/10 shadow-2xl">
                  {eventData.coverImage ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={eventData.coverImage} className="w-full h-full object-cover" alt="Cover" />
                  ) : (
                     <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-zinc-500 font-medium">Sin Imagen</div>
@@ -143,7 +185,7 @@ export default function LivePreview() {
                       </div>
                   </div>
                   
-                  {/* FECHA BADGE - TEXTO BLANCO */}
+                  {/* FECHA BADGE */}
                   <div 
                     className="rounded-2xl w-[70px] h-[70px] flex flex-col items-center justify-center backdrop-blur-sm border"
                     style={{ backgroundColor: `${cardBg}90`, borderColor: `${borderCol}60` }}
@@ -153,7 +195,7 @@ export default function LivePreview() {
                   </div>
               </div>
 
-              {/* TAGS PILLS - TEXTO BLANCO */}
+              {/* TAGS PILLS */}
               <div className="flex flex-nowrap gap-2 mt-5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
                   <div 
                     className="shrink-0 px-2.5 py-1 rounded-full border flex items-center gap-1.5"
@@ -232,7 +274,7 @@ export default function LivePreview() {
               />
           </div>
 
-          {/* ADMISIÓN - TEXTOS BLANCOS */}
+          {/* ADMISIÓN */}
           <div className="px-6 mb-8">
               <h3 className="text-lg font-bold text-white mb-4">Admisión & Reglas</h3>
               <div className="grid grid-cols-2 gap-4">
@@ -265,7 +307,7 @@ export default function LivePreview() {
               </div>
           </div>
 
-          {/* UBICACIÓN - LINK BLANCO */}
+          {/* UBICACIÓN */}
           <div className="px-6 mb-8">
                <div className="flex justify-between items-end mb-4">
                    <h3 className="text-lg font-bold text-white">Ubicación</h3>
@@ -325,8 +367,9 @@ export default function LivePreview() {
   )
 }
 
-function TicketSelectionPreview({ eventData, accent, radius, font, cardBg, borderCol }: { eventData: any, accent: string, radius: string, font: string, cardBg: string, borderCol: string }) {
-    const visibleTickets = eventData.tickets.filter((t: any) => t.isActive !== false);
+// COMPONENTE SECUNDARIO TIPADO
+function TicketSelectionPreview({ eventData, accent, radius, font, cardBg, borderCol }: TicketPreviewProps) {
+    const visibleTickets = eventData.tickets.filter(t => t.isActive !== false);
 
     return (
         <div className={`w-[390px] h-[820px] bg-black rounded-[55px] border-[6px] border-black shadow-[0_0_0_4px_#27272a,0_20px_50px_-10px_rgba(0,0,0,0.5)] overflow-hidden relative flex flex-col select-none ring-1 ring-white/10 ${font}`}>
@@ -350,7 +393,7 @@ function TicketSelectionPreview({ eventData, accent, radius, font, cardBg, borde
                 </div>
             </div>
             
-            {/* Header Flotante Tickets (Botón Blanco) */}
+            {/* Header Flotante Tickets */}
             <div className="relative z-10 px-6 pt-16 pb-4 flex justify-between items-center">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md border" style={{ backgroundColor: `${cardBg}CC`, borderColor: `${borderCol}80` }}>
                     <ArrowLeft className="text-white" size={20} color="white" />
@@ -382,7 +425,7 @@ function TicketSelectionPreview({ eventData, accent, radius, font, cardBg, borde
                             <p className="text-zinc-500 text-sm">No hay entradas visibles configuradas.</p>
                         </div>
                     ) : (
-                        visibleTickets.map((tier: any) => {
+                        visibleTickets.map((tier) => {
                             const remaining = Math.max(0, tier.quantity - (tier.sold || 0));
                             const isSoldOut = remaining <= 0 || tier.isGhostSoldOut;
                             return (

@@ -10,9 +10,6 @@ export default function OnboardingPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   
-  // --- CORRECCIÓN: Eliminamos "const supabase = createClient()" ---
-  // Ahora usamos directamente la variable 'supabase' importada arriba.
-  
   // Referencias para los inputs
   const logoInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
@@ -108,9 +105,11 @@ export default function OnboardingPage() {
       // Forzamos recarga completa para que el OrgProvider detecte la nueva productora
       window.location.href = '/'
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Manejo de error tipado para evitar 'no-explicit-any'
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
       console.error(error)
-      alert("Error: " + error.message)
+      alert("Error: " + errorMessage)
     } finally {
       setLoading(false)
     }
@@ -147,6 +146,7 @@ export default function OnboardingPage() {
                     onClick={() => bannerInputRef.current?.click()}
                 >
                     {bannerPreview ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={bannerPreview} className="w-full h-full object-cover opacity-80" alt="Banner Preview" />
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-white/30 gap-2 group-hover/banner:text-white transition-colors">
@@ -164,6 +164,7 @@ export default function OnboardingPage() {
                         onClick={() => logoInputRef.current?.click()}
                     >
                         {logoPreview ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
                             <img src={logoPreview} className="w-full h-full object-cover rounded-[1.3rem]" alt="Logo Preview" />
                         ) : (
                             <div className="text-white/40 flex flex-col items-center gap-1 group-hover/logo:text-white transition-colors">

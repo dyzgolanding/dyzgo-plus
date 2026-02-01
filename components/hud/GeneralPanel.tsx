@@ -1,6 +1,6 @@
 'use client'
 import { useEventStore } from '@/store/useEventStore'
-import { Calendar, MapPin, Type, Clock, Tags, Navigation, Building2, Map, Hash, Loader2, Music } from 'lucide-react'
+import { Calendar, MapPin, Type, Clock, Tags, Navigation, Building2, Map as MapIcon, Hash, Loader2, Music } from 'lucide-react'
 import { useState, forwardRef, useMemo, useEffect } from 'react'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import "react-datepicker/dist/react-datepicker.css"
@@ -11,6 +11,52 @@ registerLocale('es', es)
 
 const CATEGORIES = ['Sunset', 'Rooftop', 'Afteroffice', 'Afterparty', 'Universitario', 'Nocturno']
 const MUSIC_STYLES = ['Reggaetón', 'Techno', 'House', 'EDM', 'Trap']
+
+// --- INTERFACES LOCALES PARA TIPADO SEGURO ---
+interface Club {
+  id: string
+  name: string
+}
+
+interface CustomInputProps {
+  value?: string
+  onClick?: () => void
+  placeholder?: string
+  icon?: React.ReactNode
+}
+
+// Definimos la interfaz que ESPERAMOS del store para este componente
+interface GeneralStoreState {
+  eventData: {
+    name?: string
+    category?: string
+    musicGenre?: string
+    date?: string
+    endDate?: string
+    startTime?: string
+    endTime?: string
+    venue?: string
+    region?: string
+    commune?: string
+    street?: string
+    number?: string
+    address?: string
+    [key: string]: unknown
+  }
+  setEventName: (v: string) => void
+  setEventVenue: (v: string) => void
+  setEventDate: (v: string) => void
+  setEventEndDate: (v: string) => void
+  setEventTime: (start: string, end: string) => void
+  setCategory: (v: string) => void
+  setEventAddress: (v: string) => void
+  setEventRegion?: (v: string) => void
+  setEventCommune?: (v: string) => void
+  setEventStreet?: (v: string) => void
+  setEventNumber?: (v: string) => void
+  setClubId?: (v: string) => void
+  setMusicGenre?: (v: string) => void
+}
 
 // --- DATA CHILE COMPLETA ---
 const CHILE_DATA = [
@@ -102,6 +148,7 @@ const datePickerStyles = `
 `
 
 export default function GeneralPanel() {
+  // Casting seguro para evitar errores si el store global no tiene los tipos actualizados
   const { 
     eventData, 
     setEventName, 
@@ -115,11 +162,11 @@ export default function GeneralPanel() {
     setEventCommune,
     setEventStreet,
     setEventNumber,
-    setClubId,      // Ya debe estar en el store sin error
-    setMusicGenre   // Ya debe estar en el store sin error
-  } = useEventStore()
+    setClubId,
+    setMusicGenre
+  } = useEventStore() as unknown as GeneralStoreState
 
-  const [clubs, setClubs] = useState<any[]>([])
+  const [clubs, setClubs] = useState<Club[]>([])
   const [loadingClubs, setLoadingClubs] = useState(true)
 
   useEffect(() => {
@@ -170,7 +217,6 @@ export default function GeneralPanel() {
     
     // Convertir de vuelta a string y actualizar el Store (y DB si existe ID)
     const finalString = newGenres.join(',')
-    console.log("Actualizando Music Genre a:", finalString)
     setMusicGenre(finalString)
   }
 
@@ -233,12 +279,13 @@ export default function GeneralPanel() {
       const minutes = String(date.getMinutes()).padStart(2, '0')
       const timeString = `${hours}:${minutes}`
 
-      if (type === 'start') setEventTime(timeString, eventData.endTime)
-      else setEventTime(eventData.startTime, timeString)
+      // Tipado seguro para valores opcionales
+      if (type === 'start') setEventTime(timeString, eventData.endTime || '')
+      else setEventTime(eventData.startTime || '', timeString)
   }
 
   // eslint-disable-next-line react/display-name
-  const CustomInput = forwardRef(({ value, onClick, placeholder, icon }: any, ref: any) => (
+  const CustomInput = forwardRef<HTMLDivElement, CustomInputProps>(({ value, onClick, placeholder, icon }, ref) => (
     <div 
         onClick={onClick}
         ref={ref}
@@ -433,7 +480,7 @@ export default function GeneralPanel() {
             <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
-                        <Map size={10} /> Región
+                        <MapIcon size={10} /> Región
                     </label>
                     <select
                         value={eventData.region || ''}

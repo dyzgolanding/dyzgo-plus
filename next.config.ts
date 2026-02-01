@@ -1,24 +1,25 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**.supabase.co', // Permite imágenes de tus buckets de Supabase
+        hostname: '**.supabase.co', // Cubre cualquier proyecto de Supabase
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
     ],
   },
   typescript: {
-    // Esto permite que el build termine aunque existan errores de tipos menores
-    // Úsalo solo si tienes errores de librerías externas que no puedes controlar
+    // Lo dejamos en false porque ya hemos corregido los errores de tipo en los pasos anteriores.
+    // Si tienes prisa y queda algún error rebelde, cámbialo a true temporalmente.
     ignoreBuildErrors: false, 
   },
   eslint: {
-    // Evita que errores de linting detengan el despliegue
+    // Esto es útil para que el build no falle por reglas de estilo o warnings menores
     ignoreDuringBuilds: true,
   },
-}
+};
 
-module.exports = nextConfig
+export default nextConfig;

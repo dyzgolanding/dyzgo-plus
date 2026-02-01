@@ -21,57 +21,63 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // 1. Obtener usuario
+  // 1. Obtener usuario (Seguro y cacheado por Supabase Auth)
   const { data: { user } } = await supabase.auth.getUser()
 
-  // 2. Definir rutas
+  // 2. Definir rutas y lógica de exclusión
   const path = request.nextUrl.pathname
-  const isLoginPage = path === '/login'
   
-  // Define qué rutas proteges (TODO menos login y estáticos)
-  const isProtectedRoute = !isLoginPage && !path.startsWith('/_next') && !path.startsWith('/api') && path !== '/favicon.ico'
-
-  // --- LOGS DE DEPURACIÓN ---
-  if (!path.startsWith('/_next')) {
-    // console.log(`[Middleware] Path: ${path} | User: ${user ? 'Logueado' : 'No Logueado'}`)
+  // Excluir archivos estáticos y API de la protección para evitar bloqueos de imágenes/estilos
+  if (
+    path.startsWith('/_next') || 
+    path.startsWith('/api') || 
+    path.startsWith('/static') || 
+    path.includes('.') // Excluye archivos con extensión (.png, .svg, .css, etc)
+  ) {
+    return response
   }
 
-  // 3. Obtener Rol (Solo si hay usuario)
-  let userRole = null
-  if (user) {
-    const { data: profile, error } = await supabase
-      .from('profiles') // <--- ¡CORREGIDO! (Estaba en 'profile')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    
-    userRole = profile?.role
-    // console.log(`[Middleware] Rol detectado: ${userRole}`)
-    
-    if (error) console.error('[Middleware Error DB]:', error.message)
-  }
+  const isLoginPage = path === '/login'
+  const isAuthCallback = path === '/auth/callback'
+  
+  // Definimos qué rutas requieren estar logueado (Casi todas excepto login)
+  const isProtectedRoute = !isLoginPage && !isAuthCallback
 
   // --- LÓGICA DE REDIRECCIÓN ---
 
-  // CASO A: El Admin intenta ir al Login -> Lo mandamos al Dashboard
-  if (user && userRole === 'admin' && isLoginPage) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+  // CASO A: Usuario NO logueado intenta entrar a ruta protegida -> Login
+  if (isProtectedRoute && !user) {
+    // console.log(`[Middleware] Acceso denegado a ${path}. Redirigiendo a Login.`)
+    const redirectUrl = new URL('/login', request.url)
+    // Guardamos a dónde quería ir para redirigirlo después de loguearse (opcional)
+    redirectUrl.searchParams.set('redirectedFrom', path)
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // CASO B: Protección de Rutas
-  if (isProtectedRoute) {
-    // Solo pasa si hay usuario Y es admin
-    const canAccess = user && userRole === 'admin'
-    
-    if (!canAccess) {
-      console.log('[Middleware] Acceso denegado. Redirigiendo a Login.')
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
+  // CASO B: Usuario LOGUEADO intenta entrar al Login -> Dashboard
+  if (isLoginPage && user) {
+    // console.log('[Middleware] Usuario ya logueado. Redirigiendo a Dashboard.')
+    return NextResponse.redirect(new URL('/', request.url))
   }
+
+  // NOTA DE SEGURIDAD:
+  // Hemos eliminado la consulta a la tabla 'profiles' aquí por rendimiento y lógica.
+  // Es mejor manejar los roles (Owner vs Staff) dentro de la App (Layouts) o con RLS.
+  // Si bloqueas aquí por 'admin', un 'owner' recién registrado no podría entrar ni al Onboarding.
 
   return response
 }
 
+// Configuración del Matcher optimizada
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    /*
+     * Coincide con todas las rutas de solicitud excepto las que comienzan con:
+     * - _next/static (archivos estáticos)
+     * - _next/image (archivos de optimización de imágenes)
+     * - favicon.ico (archivo favicon)
+     * - Cualquier archivo con extensión (imágenes en public/, etc.)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }

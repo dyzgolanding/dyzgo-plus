@@ -1,12 +1,12 @@
 'use client'
+
 import { useEffect, useState, useCallback } from 'react'
 import { 
   DollarSign, Ticket, Activity, 
-  TrendingUp, PieChart as PieIcon,
-  Filter, CheckCircle2, QrCode, Users,
+  Filter, QrCode, Users,
   Target, Clock, Repeat, FileDown,
   Info, RefreshCw, AlertTriangle, Lightbulb,
-  HelpCircle, ChevronRight, UserCheck, Sparkles
+  HelpCircle, UserCheck, PieChart as PieIcon, TrendingUp
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useOrg } from '@/components/providers/org-provider'
@@ -16,6 +16,85 @@ import {
   BarChart, Bar
 } from 'recharts'
 import { subHours, subDays, subYears, format, eachHourOfInterval, eachDayOfInterval } from 'date-fns'
+
+// --- INTERFACES DE TIPADO (CRÍTICO PARA VERCEL) ---
+interface DashboardEvent {
+  id: string
+  title: string
+  views: number
+  date: string
+}
+
+interface TicketTier {
+  id: string
+  name: string
+  price: number
+  total_stock: number
+  event_id: string
+}
+
+interface UserProfile {
+  full_name: string
+  email: string
+  gender: string
+  birth_date: string
+  rut: string
+}
+
+interface RawTicket {
+  id: string
+  paid_price: number
+  status: string
+  created_at: string
+  scanned_at: string | null
+  tier_id: string
+  user_id: string | null
+  guest_email: string | null
+  guest_name: string | null
+  profiles: UserProfile | null
+  ticket_tiers: {
+    id: string
+    name: string
+    price: number
+    total_stock: number
+  } | null
+  events: {
+    id: string
+    date: string
+    title: string
+  } | null
+}
+
+interface ChartData {
+  name: string
+  value: number
+  revenue?: number
+  color?: string
+}
+
+interface MetricsState {
+  totalRevenue: number
+  revenueGoal: number
+  avgTicketPrice: number
+  totalViews: number
+  conversionRate: number
+  recurringRate: number
+  ticketsSold: number
+  ticketsAvailable: number
+  totalStock: number
+  ticketsScanned: number
+  attendanceRate: number
+  salesByTier: ChartData[]
+  stockVsSold: ChartData[]
+  entryTimeData: { time: string; count: number }[]
+  attendanceByTier: { name: string; scanned: number; unscanned: number; rate: number }[]
+  uniqueUsersCount: number
+  uniqueUsersGraph: { date: string; count: number }[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  uniqueUsersList: any[]
+  genderStats: ChartData[]
+  ageStats: { range: string; count: number }[]
+}
 
 // Paleta Neón Ajustada para Liquid Glass
 const COLORS = { 
@@ -28,7 +107,7 @@ const PIE_COLORS = [COLORS.primary, COLORS.secondary, COLORS.accent, COLORS.succ
 export default function AnalyticsPage() {
   const { currentOrgId } = useOrg()
   const [loading, setLoading] = useState(true)
-  const [events, setEvents] = useState<any[]>([])
+  const [events, setEvents] = useState<DashboardEvent[]>([])
   
   // Filtros
   const [selectedEventId, setSelectedEventId] = useState<string>('all')
@@ -36,7 +115,7 @@ export default function AnalyticsPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0) 
 
   // --- ESTADO MAESTRO ---
-  const [metrics, setMetrics] = useState({
+  const [metrics, setMetrics] = useState<MetricsState>({
     totalRevenue: 0,
     revenueGoal: 0,
     avgTicketPrice: 0,
@@ -48,18 +127,18 @@ export default function AnalyticsPage() {
     totalStock: 0,
     ticketsScanned: 0,
     attendanceRate: 0,
-    salesByTier: [] as any[],
-    stockVsSold: [] as any[],
-    entryTimeData: [] as any[],
-    attendanceByTier: [] as any[], 
+    salesByTier: [],
+    stockVsSold: [],
+    entryTimeData: [],
+    attendanceByTier: [], 
     uniqueUsersCount: 0,
-    uniqueUsersGraph: [] as any[],
-    uniqueUsersList: [] as any[],
-    genderStats: [] as any[],
-    ageStats: [] as any[]
+    uniqueUsersGraph: [],
+    uniqueUsersList: [],
+    genderStats: [],
+    ageStats: []
   })
 
-  const [rawTickets, setRawTickets] = useState<any[]>([])
+  const [rawTickets, setRawTickets] = useState<RawTicket[]>([])
 
   // 1. CARGA DE DATOS
   const fetchData = useCallback(async () => {
@@ -80,8 +159,6 @@ export default function AnalyticsPage() {
           : [selectedEventId]
 
       // --- CORRECCIÓN DE SEGURIDAD ---
-      // Si no hay eventos en esta Org (o el array está vacío), detenemos aquí.
-      // Esto evita que la query de tickets corra sin filtro 'in()' y traiga datos ajenos.
       if (targetEventIds.length === 0) {
         processAllMetrics([], eventsList || [], timeRange, [])
         setRawTickets([])
@@ -107,7 +184,6 @@ export default function AnalyticsPage() {
         .neq('status', 'refunded')
         .order('created_at', { ascending: true })
       
-      // Aquí ya es seguro usar targetEventIds porque validamos arriba que no esté vacío
       if (targetEventIds.length > 0) {
         query = query.in('event_id', targetEventIds)
       }
@@ -127,17 +203,18 @@ export default function AnalyticsPage() {
       const { data: tickets } = await query
 
       if (tickets) {
-        processAllMetrics(tickets, eventsList || [], timeRange, allTiers || [])
-        setRawTickets(tickets)
+        // Casting seguro porque sabemos la estructura que pedimos
+        processAllMetrics(tickets as unknown as RawTicket[], eventsList || [], timeRange, allTiers || [])
+        setRawTickets(tickets as unknown as RawTicket[])
       }
     } catch (err) {
       console.error("Error fetch:", err)
     } finally {
       setLoading(false)
     }
-  }, [currentOrgId, selectedEventId, timeRange])
+  }, [currentOrgId, selectedEventId, timeRange, loading, refreshTrigger])
 
-  useEffect(() => { fetchData() }, [fetchData, refreshTrigger])
+  useEffect(() => { fetchData() }, [fetchData])
 
   useEffect(() => {
     if (!currentOrgId) return
@@ -153,12 +230,17 @@ export default function AnalyticsPage() {
   }, [currentOrgId])
 
   // 4. PROCESAMIENTO
-  const processAllMetrics = (tickets: any[], eventList: any[], range: string, allTiers: any[]) => {
+  // 
+
+[Image of data processing flow diagram]
+
+  const processAllMetrics = (tickets: RawTicket[], eventList: DashboardEvent[], range: string, allTiers: TicketTier[]) => {
     let revenue = 0
     let scanned = 0
-    let sold = tickets.length
+    const sold = tickets.length
     
-    const tierMap = new Map<string, any>()
+    // Mapa auxiliar para acumular datos por Tier
+    const tierMap = new Map<string, { id: string, name: string, sold: number, revenue: number, stock: number, scanned: number, staticPrice: number }>()
     
     // Inicializar mapa con datos base
     allTiers.forEach(tier => {
@@ -169,13 +251,14 @@ export default function AnalyticsPage() {
             revenue: 0, 
             stock: tier.total_stock, 
             scanned: 0, 
-            staticPrice: Number(tier.price) // Aseguramos que sea número
+            staticPrice: Number(tier.price) 
         })
     })
 
     const hourlyScans = new Map<string, number>()
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const dateMap = new Map<string, number>() 
-    const usersMap = new Map<string, any>()
+    const usersMap = new Map<string, { name: string, email: string, rut: string, totalSpent: number, ticketsCount: number, lastDate: string }>()
     const userGrowthMap = new Map<string, number>()
     
     let maleCount = 0
@@ -198,17 +281,13 @@ export default function AnalyticsPage() {
         // --- LÓGICA ROBUSTA DE PRECIO ---
         let finalPrice = Number(t.paid_price)
 
-        // Si el precio pagado es 0 o inválido, forzamos el precio del tier
         if (!finalPrice || finalPrice === 0) {
-            // Intentamos obtenerlo del join
             finalPrice = Number(t.ticket_tiers?.price)
-            // Si el join falla (es 0 o null), usamos el mapa de respaldo
             if ((!finalPrice || finalPrice === 0) && mappedTier) {
                 finalPrice = mappedTier.staticPrice
             }
         }
         
-        // Acumular Revenue Total
         revenue += finalPrice
 
         const tDate = new Date(t.created_at)
@@ -225,14 +304,12 @@ export default function AnalyticsPage() {
             hourlyScans.set(timeKey, (hourlyScans.get(timeKey) || 0) + 1)
         }
 
-        // Actualizar estadísticas por Tier en el mapa
         if (tId && tierMap.has(tId)) {
-            const tierStat = tierMap.get(tId)
+            const tierStat = tierMap.get(tId)!
             tierStat.sold++
-            tierStat.revenue += finalPrice // Usamos el precio corregido
+            tierStat.revenue += finalPrice 
             if (t.scanned_at) tierStat.scanned++
         } else if (tId) {
-            // Caso borde: Tier no encontrado en allTiers pero presente en ticket
             const tName = t.ticket_tiers?.name || 'Desconocido'
             const tStock = t.ticket_tiers?.total_stock || 0
             tierMap.set(tId, { id: tId, name: tName, sold: 1, revenue: finalPrice, stock: tStock, scanned: t.scanned_at ? 1 : 0, staticPrice: finalPrice })
@@ -249,15 +326,14 @@ export default function AnalyticsPage() {
             usersMap.set(uniqueKey, { name: userName, email: userEmail, rut: userRut, totalSpent: 0, ticketsCount: 0, lastDate: t.created_at })
             userGrowthMap.set(dateKey, cumulativeUsers)
         } else {
-            const u = usersMap.get(uniqueKey)
-            // SI EL USUARIO REPITE COMPRA: Incrementamos recurrentes si es su segunda entrada detectada
+            const u = usersMap.get(uniqueKey)!
             if (u.ticketsCount === 1) {
               recurringUsers++ 
             }
             if (!userGrowthMap.has(dateKey)) userGrowthMap.set(dateKey, cumulativeUsers)
             else userGrowthMap.set(dateKey, cumulativeUsers)
         }
-        const user = usersMap.get(uniqueKey)
+        const user = usersMap.get(uniqueKey)!
         user.totalSpent += finalPrice
         user.ticketsCount += 1
         if (new Date(t.created_at) > new Date(user.lastDate)) user.lastDate = t.created_at
@@ -360,7 +436,6 @@ export default function AnalyticsPage() {
     })
   }
 
-  // --- CORRECCIÓN EXPORTAR BASE DE DATOS CLIENTES ---
   const handleDownloadUsers = () => {
     const headers = 'Nombre,Correo,RUT,Total gastado,Tickets totales,Fecha de última compra'
     const rows = metrics.uniqueUsersList.map(u => {
@@ -522,7 +597,7 @@ export default function AnalyticsPage() {
                                             <span className="text-[10px] text-white/40">{t.value} tix</span>
                                         </div>
                                     </div>
-                                    <span className="text-xs font-mono font-bold text-white/80">${t.revenue.toLocaleString()}</span>
+                                    <span className="text-xs font-mono font-bold text-white/80">${t.revenue!.toLocaleString()}</span>
                                 </div>
                             ))}
                         </div>
@@ -749,7 +824,13 @@ export default function AnalyticsPage() {
 
 // --- SUB-COMPONENTES ESTILIZADOS ---
 
-function SectionHeader({ title, subtitle, description }: any) {
+interface SectionHeaderProps {
+  title: string
+  subtitle: string
+  description: string
+}
+
+function SectionHeader({ title, subtitle, description }: SectionHeaderProps) {
     return (
         <div className="mb-6">
             <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
@@ -785,7 +866,18 @@ function InsightBox({ type, text }: { type: 'positive'|'negative'|'info'|'neutra
     )
 }
 
-function KpiCard({ title, value, sub, icon, color, bg, progress, tooltip }: any) {
+interface KpiCardProps {
+  title: string
+  value: string
+  sub: string
+  icon: React.ReactNode
+  color: string
+  bg: string
+  progress?: number
+  tooltip?: string
+}
+
+function KpiCard({ title, value, sub, icon, color, bg, progress, tooltip }: KpiCardProps) {
     return (
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-6 relative overflow-hidden group hover:border-white/20 transition-all hover:scale-[1.02] shadow-xl shadow-purple-900/5">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-50" />

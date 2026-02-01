@@ -17,6 +17,67 @@ export interface Ticket {
   endDate?: string         
   type?: 'paid' | 'courtesy'
   ticketsIncluded?: number 
+  sold?: number
+}
+
+// Interfaces auxiliares para evitar 'any'
+interface UploadedDB {
+  id: string
+  name: string
+  url: string
+}
+
+interface Ambassador {
+  id: string
+  name: string
+  email: string
+}
+
+interface EventData {
+  id: string | null
+  name: string
+  venue: string
+  clubId?: string 
+  address: string
+  region: string
+  commune: string
+  street: string
+  number: string
+
+  date: string
+  endDate: string
+  startTime: string
+  endTime: string
+  description: string
+  category: string
+  musicGenre: string 
+  musicTags: string[]
+  prohibitedItems: string[]
+  minAgeMen: number
+  minAgeWomen: number
+  dressCode: string
+  coverImage: string | null
+  
+  themeColor: string      
+  themeColorEnd: string   
+  cardBackgroundColor: string 
+  borderColor: string         
+  accentColor: string   
+  
+  borderRadius: string  
+  fontStyle: string     
+  socialLinks: { instagram: string; tiktok: string; website: string }
+  tickets: Ticket[]
+  uploaded_dbs: UploadedDB[]
+  ambassadors: Ambassador[]
+  settings: {
+    isPrivate: boolean
+    absorbFee: boolean
+    showRemaining: boolean
+    allowMarketplace: boolean
+    allowOverprice: boolean
+    showInstagram: boolean
+  }
 }
 
 const initialEventData: EventData = {
@@ -65,53 +126,6 @@ const initialEventData: EventData = {
     allowMarketplace: true,
     allowOverprice: false,
     showInstagram: true 
-  }
-}
-
-interface EventData {
-  id: string | null
-  name: string
-  venue: string
-  clubId?: string 
-  address: string
-  region: string
-  commune: string
-  street: string
-  number: string
-
-  date: string
-  endDate: string
-  startTime: string
-  endTime: string
-  description: string
-  category: string
-  musicGenre: string 
-  musicTags: string[]
-  prohibitedItems: string[]
-  minAgeMen: number
-  minAgeWomen: number
-  dressCode: string
-  coverImage: string | null
-  
-  themeColor: string      
-  themeColorEnd: string   
-  cardBackgroundColor: string 
-  borderColor: string         
-  accentColor: string   
-  
-  borderRadius: string  
-  fontStyle: string     
-  socialLinks: { instagram: string; tiktok: string; website: string }
-  tickets: Ticket[]
-  uploaded_dbs: any[]
-  ambassadors: any[]
-  settings: {
-    isPrivate: boolean
-    absorbFee: boolean
-    showRemaining: boolean
-    allowMarketplace: boolean
-    allowOverprice: boolean
-    showInstagram: boolean
   }
 }
 
@@ -198,17 +212,22 @@ export const useEventStore = create<EventState>((set, get) => ({
   setFontStyle: (font) => set((state) => ({ eventData: { ...state.eventData, fontStyle: font } })), 
   
   updateSettings: (newSettings) => set((state) => {
+    // Lógica para detectar si es configuración anidada o raíz
     if ('isPrivate' in newSettings || 'absorbFee' in newSettings || 'showInstagram' in newSettings) {
-      return { eventData: { ...state.eventData, settings: { ...state.eventData.settings, ...newSettings } } }
+      return { 
+        eventData: { 
+            ...state.eventData, 
+            settings: { ...state.eventData.settings, ...newSettings } 
+        } 
+      }
     }
     return { eventData: { ...state.eventData, ...newSettings } }
   }),
 
   setActiveSection: (section) => set({ activeSection: section }),
 
-  // --- FUNCIÓN CORREGIDA ---
   loadEvent: async (id) => {
-      // Pedimos ticket_tiers(*) para que traiga TODAS las columnas, incluida tickets_included
+      // Pedimos ticket_tiers(*) para que traiga TODAS las columnas
       const { data: event, error } = await supabase
         .from('events')
         .select(`
@@ -220,6 +239,7 @@ export const useEventStore = create<EventState>((set, get) => ({
       
       if (error || !event) return;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tickets = event.ticket_tiers?.map((t: any) => ({
           id: t.id,
           name: t.name,
@@ -233,8 +253,6 @@ export const useEventStore = create<EventState>((set, get) => ({
           endDate: t.sales_end_at,
           type: t.type || 'paid', 
           color: (t.type === 'courtesy') ? 'pink' : 'purple',
-          
-          // AQUÍ ESTABA EL ERROR: Faltaba mapear tickets_included de la BD al store
           ticketsIncluded: t.tickets_included || 1 
       })) || []
 
@@ -294,8 +312,6 @@ export const useEventStore = create<EventState>((set, get) => ({
             type: ticket.type || 'paid', 
             sales_start_at: ticket.startDate ? new Date(ticket.startDate).toISOString() : null,
             sales_end_at: ticket.endDate ? new Date(ticket.endDate).toISOString() : null,
-            
-            // Asegúrate que al crear también se guarde
             tickets_included: ticket.ticketsIncluded || 1
           })
           .select()
@@ -340,6 +356,7 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     // Actualización en Base de Datos
     if (currentState.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const dbPayload: any = {}
         if (data.name !== undefined) dbPayload.name = data.name
         if (data.price !== undefined) dbPayload.price = data.price
@@ -351,8 +368,6 @@ export const useEventStore = create<EventState>((set, get) => ({
         if (data.startDate !== undefined) dbPayload.sales_start_at = data.startDate ? new Date(data.startDate).toISOString() : null
         if (data.endDate !== undefined) dbPayload.sales_end_at = data.endDate ? new Date(data.endDate).toISOString() : null
         if (data.type !== undefined) dbPayload.type = data.type
-        
-        // Se guarda el cambio en la DB al editar
         if (data.ticketsIncluded !== undefined) dbPayload.tickets_included = data.ticketsIncluded
 
         await supabase.from('ticket_tiers').update(dbPayload).eq('id', id)

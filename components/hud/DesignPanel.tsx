@@ -4,9 +4,39 @@ import { ImageIcon, Palette, UploadCloud, MousePointerClick, Layers } from 'luci
 import { useRef, useState, useEffect } from 'react'
 import { HexColorPicker } from 'react-colorful'
 
+// Interfaz para tipar el store localmente y evitar 'any'
+interface EventDataDesign {
+  themeColor: string
+  themeColorEnd?: string
+  cardBackgroundColor?: string
+  borderColor?: string
+  accentColor?: string
+  coverImage?: string
+}
+
+interface DesignStoreActions {
+  eventData: EventDataDesign
+  setThemeColor: (c: string) => void
+  setThemeColorEnd: (c: string) => void
+  setCardBackgroundColor: (c: string) => void
+  setBorderColor: (c: string) => void
+  setAccentColor: (c: string) => void
+  setCoverImage: (url: string) => void
+}
+
 export default function DesignPanel() {
-  // @ts-ignore
-  const { eventData, setThemeColor, setThemeColorEnd, setCardBackgroundColor, setBorderColor, setAccentColor, setCoverImage } = useEventStore()
+  // Casting seguro en lugar de @ts-ignore
+  const store = useEventStore() as unknown as DesignStoreActions
+  const { 
+    eventData, 
+    setThemeColor, 
+    setThemeColorEnd, 
+    setCardBackgroundColor, 
+    setBorderColor, 
+    setAccentColor, 
+    setCoverImage 
+  } = store
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   // Estados para los pickers
@@ -16,16 +46,17 @@ export default function DesignPanel() {
   const [showBorderPicker, setShowBorderPicker] = useState(false)
   const [showAccentPicker, setShowAccentPicker] = useState(false)
 
-  // Valores
-  const themeColorEnd = (eventData as any).themeColorEnd || '#090014';
-  const cardBgColor = (eventData as any).cardBackgroundColor || '#1a0b2e';
-  const borderColor = (eventData as any).borderColor || '#8A2BE2';
-  const currentAccent = (eventData as any).accentColor || '#FF00FF'
+  // Valores con fallback seguros
+  const themeColorEnd = eventData.themeColorEnd || '#090014'
+  const cardBgColor = eventData.cardBackgroundColor || '#1a0b2e'
+  const borderColor = eventData.borderColor || '#8A2BE2'
+  const currentAccent = eventData.accentColor || '#FF00FF'
 
   useEffect(() => {
-    if ((eventData as any).accentColor === '#ffffff') {
+    if (eventData.accentColor === '#ffffff') {
         setAccentColor('#FF00FF')
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,8 +64,10 @@ export default function DesignPanel() {
     if (file) {
       const localUrl = URL.createObjectURL(file)
       setCoverImage(localUrl) 
-      // @ts-ignore
-      useEventStore.setState((state) => ({ ...state, tempFile: file }))
+      
+      // Acceso directo al store de Zustand para guardar el archivo temporal
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      useEventStore.setState((state: any) => ({ ...state, tempFile: file }))
     }
   }
 
@@ -158,6 +191,7 @@ export default function DesignPanel() {
         <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-zinc-800 rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:bg-zinc-900/50 hover:border-zinc-700 transition-all cursor-pointer relative overflow-hidden group">
             {eventData.coverImage ? (
                 <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={eventData.coverImage} className="absolute inset-0 w-full h-full object-cover opacity-40" alt="Preview" />
                     <UploadCloud size={24} className="text-white z-10" />
                     <p className="z-10 text-xs text-white font-bold">Cambiar Flyer</p>
