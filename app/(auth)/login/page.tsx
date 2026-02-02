@@ -9,7 +9,7 @@ import { login } from './actions'
 // 1. Separamos la lógica del formulario en un componente interno
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false) 
+  const [loading, setLoading] = useState(false)
   
   const searchParams = useSearchParams()
   const errorMsg = searchParams.get('error')
@@ -144,7 +144,7 @@ function LoginForm() {
                         Sistema v2.0
                     </div>
                     <h2 className="text-4xl md:text-5xl font-black mb-6 leading-tight tracking-tight text-white">
-                        Gestión <br/>
+                        Gestiónnnn <br/>
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#8A2BE2] to-[#FF007F]">Inteligente</span> <br/>
                         de Eventos.
                     </h2>
@@ -184,4 +184,5 @@ export default function LoginPage() {
       <LoginForm />
     </Suspense>
   )
+
 }
