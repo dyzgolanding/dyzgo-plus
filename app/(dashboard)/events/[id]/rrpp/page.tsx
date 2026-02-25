@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { 
     Loader2, Plus, Ticket, Gift, Search,
     Layers, PlusCircle, FileSpreadsheet, Download, Upload, CheckCircle2, Trash2,
-    X, Calendar, Clock, User, ChevronDown, Send
+    X, Calendar, Clock, User, ChevronDown, Send, Save, Eye
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useEventStore } from '@/store/useEventStore'
@@ -146,7 +146,6 @@ interface CourtesyTicket {
   id: string; guest_name: string; guest_email: string; ticket_name: string; created_at: string; status: string
 }
 
-// Interface auxiliar para evitar errores de tipo en uploadedGroups
 interface UploadedGroup {
     name: string;
     data: unknown[];
@@ -170,6 +169,9 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
   const [isGroupCourtesyOpen, setIsGroupCourtesyOpen] = useState(false)
   const [recipients, setRecipients] = useState([{ email: '', nombre: '', apellido: '', rut: '', cantidad: 1 }])
   
+  // NUEVO ESTADO PARA VER DETALLE
+  const [viewingGroup, setViewingGroup] = useState<UploadedGroup | null>(null)
+
   // ESTADOS MODALES
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedDb, setSelectedDb] = useState('')
@@ -204,10 +206,13 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
     reader.readAsBinaryString(file)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const saveDatabase = async () => {
-    if (!dbName || !previewData) return; const newGroup = { name: dbName, data: previewData, date: new Date().toLocaleDateString('es-CL') }; const updatedGroups = [...uploadedGroups, newGroup];
-    const { error } = await supabase.from('events').update({ uploaded_dbs: updatedGroups }).eq('id', eventId); if (error) alert("Error"); else { setUploadedGroups(updatedGroups); setPreviewData(null); setDbName('') }
+    if (!dbName || !previewData) return; 
+    const newGroup = { name: dbName, data: previewData, date: new Date().toLocaleDateString('es-CL') }; 
+    const updatedGroups = [...uploadedGroups, newGroup];
+    const { error } = await supabase.from('events').update({ uploaded_dbs: updatedGroups }).eq('id', eventId); 
+    if (error) alert("Error al guardar base de datos"); 
+    else { setUploadedGroups(updatedGroups); setPreviewData(null); setDbName('') }
   }
 
   const removeGroup = async (idx: number) => {
@@ -219,7 +224,6 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
 
   const filteredList = courtesyList.filter(ticket => ticket.guest_name?.toLowerCase().includes(searchTerm.toLowerCase()) || ticket.guest_email?.toLowerCase().includes(searchTerm.toLowerCase()) || ticket.ticket_name?.toLowerCase().includes(searchTerm.toLowerCase()))
 
-  // Tipado seguro para evitar error "Property 'tickets' does not exist on type 'unknown'"
   const courtesyTicketsOnly = (eventData as any)?.tickets?.filter((t: any) => t.type === 'courtesy') || []
 
   if (loading) return (
@@ -229,7 +233,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
   )
 
   return (
-    // CONTENEDOR LIMPIO (Sin fondo, ya está en el Layout)
+    // CONTENEDOR LIMPIO
     <div className="relative z-10 max-w-[1600px] mx-auto space-y-8 animate-in fade-in pt-4">
         <style>{datePickerStyles}</style>
         
@@ -308,7 +312,11 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
             {uploadedGroups.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-8">
                     {uploadedGroups.map((group, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-6 bg-black/40 border border-white/5 rounded-3xl group hover:border-[#00D15B]/30 transition-all shadow-md">
+                        <div 
+                            key={idx} 
+                            onClick={() => setViewingGroup(group)} 
+                            className="flex items-center justify-between p-6 bg-black/40 border border-white/5 rounded-3xl group hover:border-[#00D15B]/30 transition-all shadow-md cursor-pointer hover:bg-white/5"
+                        >
                             <div className="flex items-center gap-4">
                                 <div className="p-2.5 bg-[#00D15B]/10 rounded-xl text-[#00D15B] border border-[#00D15B]/20">
                                     <CheckCircle2 size={20}/>
@@ -318,7 +326,10 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                                     <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider">{group.data.length} Clientes • {group.date}</p>
                                 </div>
                             </div>
-                            <button onClick={() => removeGroup(idx)} className="p-3 text-white/20 hover:text-[#FF007F] opacity-0 group-hover:opacity-100 transition-all transform hover:scale-110 hover:bg-white/5 rounded-xl">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); removeGroup(idx); }} 
+                                className="p-3 text-white/20 hover:text-[#FF007F] opacity-0 group-hover:opacity-100 transition-all transform hover:scale-110 hover:bg-white/5 rounded-xl"
+                            >
                                 <Trash2 size={18} />
                             </button>
                         </div>
@@ -395,13 +406,11 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
             </div>
         </div>
 
-        {/* --- MODAL INVITACIÓN INDIVIDUAL REDISEÑADO --- */}
+        {/* --- MODAL INVITACIÓN INDIVIDUAL --- */}
         {isIndividualCourtesyOpen && (
             <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 animate-in fade-in duration-300">
                 <div className="absolute inset-0 bg-[#050505]/95 backdrop-blur-3xl" onClick={() => setIsIndividualCourtesyOpen(false)} />
                 <div className="relative w-full max-w-6xl bg-[#09090b] border border-white/10 rounded-[3rem] p-12 shadow-2xl animate-in zoom-in-95 overflow-hidden">
-                    
-                    {/* Glow Ambiental Morado */}
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#8A2BE2] to-[#FF007F] opacity-80" />
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#8A2BE2]/10 rounded-full blur-[120px] pointer-events-none" />
 
@@ -453,13 +462,11 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
             </div>
         )}
 
-        {/* --- MODAL DESPACHO MASIVO REDISEÑADO --- */}
+        {/* --- MODAL DESPACHO MASIVO --- */}
         {isGroupCourtesyOpen && (
             <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 animate-in fade-in duration-300">
                 <div className="absolute inset-0 bg-[#050505]/95 backdrop-blur-3xl" onClick={() => setIsGroupCourtesyOpen(false)} />
                 <div className="relative w-full max-w-4xl bg-[#09090b] border border-white/10 rounded-[3.5rem] p-16 shadow-2xl animate-in zoom-in-95 overflow-hidden">
-                    
-                    {/* Glow Ambiental Verde */}
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#00D15B] to-[#10b981] opacity-80" />
                     <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#00D15B]/10 rounded-full blur-[100px] pointer-events-none" />
 
@@ -492,6 +499,97 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                     <button className="w-full py-6 bg-gradient-to-r from-[#00D15B] to-[#10b981] text-black font-black rounded-[2rem] shadow-[0_0_50px_rgba(34,197,94,0.3)] uppercase tracking-[0.3em] transition-all hover:scale-[1.01] active:scale-95 text-xs flex items-center justify-center gap-3 relative z-10 group">
                         <Send size={18} className="group-hover:translate-x-1 transition-transform"/> Iniciar Despacho
                     </button>
+                </div>
+            </div>
+        )}
+
+        {/* --- MODAL PARA GUARDAR BASE DE DATOS --- */}
+        {previewData && (
+            <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                <div className="absolute inset-0 bg-[#050505]/90 backdrop-blur-lg" onClick={() => setPreviewData(null)} />
+                <div className="relative w-full max-w-md bg-[#09090b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95">
+                    <div className="flex flex-col items-center justify-center mb-6">
+                        <div className="p-4 bg-[#00D15B]/10 rounded-full text-[#00D15B] border border-[#00D15B]/20 mb-4 shadow-[0_0_30px_rgba(0,209,91,0.2)]">
+                            <Save size={32} />
+                        </div>
+                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">Guardar Base de Datos</h3>
+                        <p className="text-white/40 text-xs font-medium mt-2">Se han detectado <span className="text-white font-bold">{previewData.length}</span> registros.</p>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-2">Nombre de la lista</label>
+                            <input 
+                                autoFocus
+                                type="text" 
+                                value={dbName} 
+                                onChange={(e) => setDbName(e.target.value)} 
+                                placeholder="Ej: Lista Viernes" 
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white outline-none focus:border-[#00D15B] focus:bg-black/60 transition-all font-medium placeholder:text-white/20 shadow-inner"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button onClick={() => setPreviewData(null)} className="py-4 bg-white/5 rounded-2xl text-white/40 font-bold text-xs hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest">Cancelar</button>
+                            <button onClick={saveDatabase} className="py-4 bg-[#00D15B] rounded-2xl text-black font-black text-xs hover:bg-[#00D15B]/90 transition-all uppercase tracking-widest shadow-[0_0_20px_rgba(0,209,91,0.3)]">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* --- NUEVO MODAL: VISUALIZAR BASE DE DATOS --- */}
+        {viewingGroup && (
+            <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 animate-in fade-in duration-300">
+                <div className="absolute inset-0 bg-[#050505]/95 backdrop-blur-3xl" onClick={() => setViewingGroup(null)} />
+                <div className="relative w-full max-w-4xl bg-[#09090b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 flex flex-col max-h-[80vh]">
+                    
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-8 pb-6 border-b border-white/5">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-[#00D15B]/10 rounded-2xl text-[#00D15B] border border-[#00D15B]/20">
+                                <Eye size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">{viewingGroup.name}</h3>
+                                <p className="text-white/40 text-xs font-medium mt-1 uppercase tracking-wide">
+                                    {viewingGroup.data.length} Registros • Importado el {viewingGroup.date}
+                                </p>
+                            </div>
+                        </div>
+                        <button onClick={() => setViewingGroup(null)} className="p-2 bg-white/5 rounded-full text-white/40 hover:text-white hover:bg-white/10 transition-colors">
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    {/* Tabla de Datos */}
+                    <div className="overflow-y-auto custom-scrollbar flex-1 pr-2">
+                        {viewingGroup.data.length > 0 ? (
+                            <div className="w-full">
+                                {/* Headers dinámicos */}
+                                <div className="grid grid-flow-col auto-cols-fr gap-4 pb-4 mb-4 border-b border-white/5 sticky top-0 bg-[#09090b] z-10">
+                                    {Object.keys(viewingGroup.data[0] as object).map((key, i) => (
+                                        <div key={i} className="text-[10px] font-black text-white/30 uppercase tracking-widest truncate">
+                                            {key}
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Filas */}
+                                <div className="space-y-2">
+                                    {viewingGroup.data.map((row, idx) => (
+                                        <div key={idx} className="grid grid-flow-col auto-cols-fr gap-4 py-3 px-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors text-xs font-medium text-white/80">
+                                            {Object.values(row as object).map((val, vIdx) => (
+                                                <div key={vIdx} className="truncate">{String(val)}</div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-20 text-white/30">
+                                <p className="text-sm font-bold uppercase">Esta lista está vacía.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         )}
