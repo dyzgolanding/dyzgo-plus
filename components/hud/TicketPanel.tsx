@@ -3,7 +3,7 @@ import { useState, forwardRef } from 'react'
 import { 
   Plus, Trash2, UserCheck, 
   Calendar, Clock, Ghost, Eye, EyeOff, ChevronDown, ChevronUp, Save, X, AlertTriangle,
-  Ticket as TicketIcon, Gift, Settings, Layers
+  Ticket as TicketIcon, Gift, Settings, Layers, GripVertical
 } from 'lucide-react'
 import { useEventStore } from '@/store/useEventStore'
 import DatePicker, { registerLocale } from 'react-datepicker' 
@@ -156,6 +156,9 @@ export default function TicketPanel() {
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null)
   const [ticketToDelete, setTicketToDelete] = useState<string | null>(null) 
   
+  // Estado para el drag and drop
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  
   // Estado del formulario con tipos flexibles para inputs controlados (string | number)
   const [newTicketForm, setNewTicketForm] = useState({ ...INITIAL_TICKET_STATE, price: '' as string | number, quantity: '' as string | number })
 
@@ -235,6 +238,39 @@ export default function TicketPanel() {
         removeTicket(ticketToDelete)
         setTicketToDelete(null)
     }
+  }
+
+  // --- LOGICA DE DRAG AND DROP ---
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+      setDraggedIndex(index)
+      e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragEnter = (e: React.DragEvent, targetIndex: number) => {
+      if (draggedIndex === null || draggedIndex === targetIndex) return
+
+      // Usamos setState del store para reordenar el array en vivo
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      useEventStore.setState((state: any) => {
+          const newTickets = [...state.eventData.tickets]
+          const draggedTicket = newTickets[draggedIndex]
+          newTickets.splice(draggedIndex, 1)
+          newTickets.splice(targetIndex, 0, draggedTicket)
+          
+          return {
+              ...state,
+              eventData: {
+                  ...state.eventData,
+                  tickets: newTickets
+              }
+          }
+      })
+      
+      setDraggedIndex(targetIndex)
+  }
+
+  const handleDragEnd = () => {
+      setDraggedIndex(null)
   }
 
   return (
@@ -340,12 +376,20 @@ export default function TicketPanel() {
       )}
 
       <div className="space-y-3">
-        {eventData.tickets.map((t) => {
+        {eventData.tickets.map((t, index) => {
             const isExpanded = expandedTicketId === t.id
             const isCourtesy = t.type === 'courtesy' || t.price === 0; 
             
             return (
-                <div key={t.id} className={`bg-zinc-900 border transition-all duration-300 rounded-xl overflow-hidden ${isExpanded ? 'border-purple-500/50 shadow-lg shadow-purple-900/10' : 'border-zinc-800'}`}>
+                <div 
+                    key={t.id} 
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnter={(e) => handleDragEnter(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                    className={`bg-zinc-900 border transition-all duration-300 rounded-xl overflow-hidden ${isExpanded ? 'border-purple-500/50 shadow-lg shadow-purple-900/10' : 'border-zinc-800'} ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
+                >
                     <div className="p-4 flex justify-between items-center cursor-pointer" onClick={() => { 
                         if (expandedTicketId === t.id) {
                             setExpandedTicketId(null); 
@@ -355,6 +399,9 @@ export default function TicketPanel() {
                         }
                     }}>
                         <div className="flex items-center gap-3">
+                            <div className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-white transition-colors" title="Arrastrar para ordenar" onClick={(e) => e.stopPropagation()}>
+                                <GripVertical size={16} />
+                            </div>
                             <div className={`w-2 h-10 rounded-full ${isCourtesy ? 'bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.5)]' : (t.isGhostSoldOut ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : (t.isActive ? 'bg-green-500' : 'bg-zinc-700'))}`}></div>
                             <div>
                                 <h3 className={`font-bold text-sm text-white flex items-center gap-2`}>
