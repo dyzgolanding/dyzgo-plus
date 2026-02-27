@@ -277,7 +277,7 @@ export default function TicketPanel() {
     <div className="space-y-6 pb-20 relative">
       <style>{datePickerStyles}</style>
       <div className="flex justify-between items-center">
-        <div><h2 className="text-xl font-bold text-white">Motor de Tickets</h2><p className="text-xs text-zinc-500">Gestiona precios, stock y reglas.</p></div>
+        <div><h2 className="text-xl font-bold text-white">Motor de Ticketsssssss</h2><p className="text-xs text-zinc-500">Gestiona precios, stock y reglas.</p></div>
       </div>
 
       {!isCreating ? (
@@ -535,3 +535,4 @@ export default function TicketPanel() {
     </div>
   )
 }
+
