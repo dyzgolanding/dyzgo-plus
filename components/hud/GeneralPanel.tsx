@@ -305,7 +305,7 @@ export default function GeneralPanel() {
       <style>{datePickerStyles}</style>
       
       <div>
-        <h2 className="text-xl font-bold text-white mb-1">Información Básicaaaaaaaaaa</h2>
+        <h2 className="text-xl font-bold text-white mb-1">Información Básica</h2>
         <p className="text-zinc-500 text-xs">Define la identidad y coordenadas de tu evento.</p>
       </div>
 
@@ -551,3 +551,4 @@ export default function GeneralPanel() {
   )
 
 }
+
