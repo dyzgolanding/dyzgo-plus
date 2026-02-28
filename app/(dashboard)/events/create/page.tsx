@@ -138,6 +138,7 @@ function CreateEventContent() {
               minAgeWomen: event.min_age_women || 0,
               prohibitedItems: event.prohibited_items || [],
               socialLinks: { instagram: event.instagram_url || '' },
+              status: event.status || 'draft', 
               
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               tickets: event.ticket_tiers ? (event.ticket_tiers as any[]).map((t: TicketTierDB) => ({
@@ -157,7 +158,7 @@ function CreateEventContent() {
               })) : [],
 
               settings: {
-                isPrivate: false,
+                isPrivate: event.status === 'draft', 
                 absorbFee: false,
                 showRemaining: true,
                 allowMarketplace: true,
@@ -277,8 +278,8 @@ function CreateEventContent() {
           }
       }
 
-      // Asegurarnos de que el status se asigne correctamente desde el SettingsPanel o asuma draft
-      const finalStatus = eventData.status || 'draft'
+      // CORRECCIÓN: Leemos el status directamente desde el estado actualizado del panel
+      const finalStatus = eventData.settings?.isPrivate ? 'draft' : 'active'
 
       // 2. Guardar Evento
       const eventPayload = {
@@ -305,8 +306,8 @@ function CreateEventContent() {
         instagram_url: eventData.socialLinks.instagram,
         category: eventData.category,
         theme_color: eventData.themeColor,
-        is_active: true,
-        status: finalStatus // <--- IMPORTANTE: Incluir el status en el guardado
+        is_active: finalStatus === 'active', // CORRECCIÓN: is_active depende del status
+        status: finalStatus 
       }
 
       let currentEventId = eventId
@@ -401,8 +402,8 @@ function CreateEventContent() {
     }
   }
 
-  // Variables para simplificar el renderizado dinámico del modal de estado
-  const isCurrentlyPublic = eventData.status === 'active'
+  // CORRECCIÓN: Leemos si es público usando la variable isPrivate
+  const isCurrentlyPublic = !eventData.settings?.isPrivate
 
   return (
     <div className="flex h-screen w-full bg-[#09090b] text-white overflow-hidden font-sans relative">
@@ -541,7 +542,7 @@ function CreateEventContent() {
                             setStatusLoading('draft');
                             const targetStatus = isCurrentlyPublic ? 'draft' : 'active';
                             if (newlyCreatedId) {
-                                await supabase.from('events').update({ status: targetStatus }).eq('id', newlyCreatedId);
+                                await supabase.from('events').update({ status: targetStatus, is_active: targetStatus === 'active' }).eq('id', newlyCreatedId);
                             }
                             setShowStatusModal(false);
                             router.push('/events');
