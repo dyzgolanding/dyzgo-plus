@@ -85,6 +85,11 @@ function CreateEventContent() {
   // --- NUEVOS ESTADOS PARA CONTROL DE CAMBIOS ---
   const [showUnsavedModal, setShowUnsavedModal] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+
+  // --- ESTADOS PARA MODAL DE PUBLICACIÓN ---
+  const [showStatusModal, setShowStatusModal] = useState(false)
+  const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null)
+  const [statusLoading, setStatusLoading] = useState<'public' | 'draft' | null>(null)
   
   // Referencias para que los eventos del navegador siempre tengan el valor actualizado
   const initialDataRef = useRef<string>('') 
@@ -361,10 +366,16 @@ function CreateEventContent() {
       isDirtyRef.current = false;
       setShowUnsavedModal(false);
 
-      // ACCIÓN EXITOSA
-      setActiveSection('settings')
-      setShowSuccessToast(true)
-      setTimeout(() => setShowSuccessToast(false), 3000)
+      if (!eventId) {
+          // Si es un evento nuevo, mostramos el modal para elegir estado
+          setNewlyCreatedId(currentEventId);
+          setShowStatusModal(true);
+      } else {
+          // ACCIÓN EXITOSA (Solo para edición)
+          setActiveSection('settings')
+          setShowSuccessToast(true)
+          setTimeout(() => setShowSuccessToast(false), 3000)
+      }
 
     } catch (error: unknown) {
       console.error(error)
@@ -426,7 +437,7 @@ function CreateEventContent() {
               disabled={loading}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold hover:brightness-110 transition-all shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={0} />}
+                {loading ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={16} />}
                 {loading ? "Guardando..." : (eventId ? "Guardar Cambios" : "Publicar Evento")}
             </button>
         </div>
@@ -453,7 +464,6 @@ function CreateEventContent() {
       {/* --- ALERTA CAMBIOS SIN GUARDAR (MODAL) --- */}
       {showUnsavedModal && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-            {/* FONDO AJUSTADO Y ANIMADO AL MISMO TIEMPO (animate-in fade-in) */}
             <div className="absolute inset-0 bg-black/20 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowUnsavedModal(false)} />
             <div className="relative w-full max-w-sm bg-[#09090b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 fade-in duration-300 text-center">
                 <div className="p-4 bg-yellow-500/10 rounded-full text-yellow-500 border border-yellow-500/20 mb-6 inline-block shadow-[0_0_30px_rgba(234,179,8,0.2)]">
@@ -470,12 +480,57 @@ function CreateEventContent() {
                     >
                         {loading ? <Loader2 className="animate-spin" size={14}/> : <CheckCircle2 size={14}/>} Guardar Cambios
                     </button>
-                    {/* El botón de salir ahora sí ejecuta la salida forzada */}
                     <button 
                         onClick={() => { setIsDirty(false); isDirtyRef.current = false; router.push('/events'); }} 
                         className="w-full py-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition-all uppercase tracking-widest"
                     >
                         Salir y perder cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- MODAL ESTADO DEL EVENTO NUEVO --- */}
+      {showStatusModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <div className="relative w-full max-w-sm bg-[#09090b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 fade-in duration-300 text-center">
+                <div className="p-4 bg-green-500/10 rounded-full text-green-500 border border-green-500/20 mb-6 inline-block shadow-[0_0_30px_rgba(34,197,94,0.2)]">
+                    <Sparkles size={32} />
+                </div>
+                <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">¡Evento Creado!</h3>
+                <p className="text-white/40 text-xs font-medium mb-8 leading-relaxed">
+                    ¿Deseas publicarlo ahora para que sea visible en la app o dejarlo en borrador?
+                </p>
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={async () => {
+                            setStatusLoading('public');
+                            if (newlyCreatedId) {
+                                await supabase.from('events').update({ status: 'active' }).eq('id', newlyCreatedId);
+                            }
+                            setShowStatusModal(false);
+                            router.push('/events');
+                        }}
+                        disabled={statusLoading !== null}
+                        className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl text-white font-black text-xs hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {statusLoading === 'public' ? <Loader2 className="animate-spin" size={14}/> : 'Hacer Público'}
+                    </button>
+                    <button 
+                        onClick={async () => {
+                            setStatusLoading('draft');
+                            if (newlyCreatedId) {
+                                await supabase.from('events').update({ status: 'draft' }).eq('id', newlyCreatedId);
+                            }
+                            setShowStatusModal(false);
+                            router.push('/events');
+                        }}
+                        disabled={statusLoading !== null}
+                        className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-zinc-400 font-bold text-xs hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {statusLoading === 'draft' ? <Loader2 className="animate-spin" size={14}/> : 'Dejar en Borrador'}
                     </button>
                 </div>
             </div>
