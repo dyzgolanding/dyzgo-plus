@@ -11,8 +11,10 @@ interface TicketData {
 }
 
 interface EventSettings {
-  allowMarketplace: boolean
-  allowOverprice: boolean
+  allowMarketplace?: boolean
+  allowOverprice?: boolean
+  is_transferable?: boolean
+  is_resellable?: boolean
   [key: string]: unknown
 }
 
@@ -26,7 +28,6 @@ interface EventData {
 
 interface StoreState {
   eventData: EventData
-  // updateSettings acepta un parcial de settings o propiedades directas como isPrivate
   updateSettings: (settings: Partial<EventSettings> | { isPrivate?: boolean }) => void
 }
 
@@ -46,54 +47,81 @@ interface VisibilityBtnProps {
 }
 
 export default function SettingsPanel() {
-  // Casting seguro para evitar errores de tipo con el store global
   const { eventData, updateSettings } = useEventStore() as unknown as StoreState
-  
   const [updating, setUpdating] = useState(false)
-  
-  // ESTADO LOCAL
-  const [currentStatus, setCurrentStatus] = useState<string | null>(null)
+  const [currentStatus, setCurrentStatus] = useState<string | null>(eventData.id ? null : 'draft')
 
-  // 1. EFECTO DE VERDAD ABSOLUTA
+  // 1. EFECTO DE VERDAD ABSOLUTA (Sincroniza estado y reglas comerciales)
   useEffect(() => {
-    const fetchRealStatus = async () => {
+    const fetchRealData = async () => {
         if (!eventData?.id) return
 
         const { data, error } = await supabase
             .from('events')
-            .select('status')
+            .select('status, is_transferable, is_resellable')
             .eq('id', eventData.id)
             .single()
 
         if (data && !error) {
             setCurrentStatus(data.status)
+            
+            // Sincronizamos las reglas comerciales si difieren del store
+            const currentTrans = eventData.settings?.is_transferable ?? true
+            const currentResell = eventData.settings?.is_resellable ?? false
+            const dbTrans = data.is_transferable ?? true
+            const dbResell = data.is_resellable ?? false
+            
+            if (currentTrans !== dbTrans || currentResell !== dbResell) {
+                // Forzamos actualización directa saltándonos las restricciones de updateSettings
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                useEventStore.setState((state: any) => ({
+                    ...state,
+                    eventData: {
+                        ...state.eventData,
+                        settings: {
+                            ...(state.eventData.settings || {}),
+                            is_transferable: dbTrans,
+                            is_resellable: dbResell
+                        }
+                    }
+                }))
+            }
         } else {
             // Fallback
             setCurrentStatus(eventData.status || 'draft')
         }
     }
 
-    fetchRealStatus()
-  }, [eventData?.id, eventData.status]) 
+    fetchRealData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventData?.id]) 
 
   const totalRevenue = eventData.tickets?.reduce((acc, ticket) => acc + (ticket.price * ticket.quantity), 0) || 0
   const totalTickets = eventData.tickets?.reduce((acc, ticket) => acc + ticket.quantity, 0) || 0
   const totalCourtesy = eventData.tickets?.filter(t => t.price === 0).reduce((acc, ticket) => acc + ticket.quantity, 0) || 0
 
   const handleStatusChange = async (targetStatus: 'active' | 'draft') => {
-    if (updating || !eventData.id) return
-    setUpdating(true)
+    if (updating) return
     
-    // UI Optimista
     setCurrentStatus(targetStatus)
-
     const isPrivate = targetStatus === 'draft'
-
-    try {
-        // 1. Actualizamos Store
+    
+    if (!eventData.id) {
         updateSettings({ isPrivate })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        useEventStore.setState((state: any) => ({
+            ...state,
+            eventData: {
+                ...state.eventData,
+                status: targetStatus
+            }
+        }))
+        return
+    }
 
-        // 2. Actualizamos Base de Datos
+    setUpdating(true)
+    try {
+        updateSettings({ isPrivate })
         const { error } = await supabase
             .from('events')
             .update({ status: targetStatus })
@@ -101,7 +129,6 @@ export default function SettingsPanel() {
 
         if (error) {
             console.error('Error actualizando:', error)
-            // Revertimos si hubo error
             setCurrentStatus(targetStatus === 'active' ? 'draft' : 'active')
         }
     } catch (err) {
@@ -111,7 +138,59 @@ export default function SettingsPanel() {
     }
   }
 
-  // Lógica de visualización
+  // --- LÓGICA REESCRITA PARA REGLAS COMERCIALES ---
+  const handleToggleRule = async (rule: 'is_transferable' | 'is_resellable') => {
+    if (updating) return
+    
+    const defaultVal = rule === 'is_transferable' ? true : false
+    const currentVal = eventData.settings?.[rule] ?? defaultVal
+    const newVal = !currentVal
+    
+    // UI Optimista (se refleja de inmediato usando setState directo del store)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    useEventStore.setState((state: any) => ({
+        ...state,
+        eventData: {
+            ...state.eventData,
+            settings: {
+                ...(state.eventData.settings || {}),
+                [rule]: newVal
+            }
+        }
+    }))
+    
+    // Guardar en Base de Datos si el evento ya existe
+    if (eventData.id) {
+        setUpdating(true)
+        try {
+            const { error } = await supabase
+                .from('events')
+                .update({ [rule]: newVal })
+                .eq('id', eventData.id)
+
+            if (error) {
+                console.error("Error actualizando regla:", error)
+                // Revertir si hay error
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                useEventStore.setState((state: any) => ({
+                    ...state,
+                    eventData: {
+                        ...state.eventData,
+                        settings: {
+                            ...(state.eventData.settings || {}),
+                            [rule]: currentVal
+                        }
+                    }
+                }))
+            }
+        } catch (err) {
+            console.error(err)
+        } finally {
+            setUpdating(false)
+        }
+    }
+  }
+
   const isPublic = currentStatus === 'active' || currentStatus === 'published'
 
   return (
@@ -121,7 +200,6 @@ export default function SettingsPanel() {
         <p className="text-zinc-500 text-xs">Ajusta la visibilidad y reglas de tu evento.</p>
       </div>
 
-      {/* ESTADO DEL EVENTO - AHORA ARRIBA Y LLAMATIVO */}
       <div className="space-y-3">
         <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
            Visibilidad del Evento
@@ -148,7 +226,6 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      {/* CAPACIDAD Y RESUMEN (MODIFICADO) */}
       <div className="space-y-3">
           <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
              Resumen Financiero
@@ -160,7 +237,6 @@ export default function SettingsPanel() {
              <h3 className="text-zinc-500 text-[10px] uppercase font-black mb-1 tracking-widest">Capacidad de Recaudación</h3>
              <div className="text-3xl font-black text-white">${totalRevenue.toLocaleString('es-CL')}</div>
              
-             {/* Nueva info útil agregada */}
              <div className="mt-5 pt-5 border-t border-white/5 grid grid-cols-2 gap-4 relative z-10">
                 <div className="flex flex-col gap-1">
                     <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center gap-1.5"><Ticket size={12}/> Tickets Totales</span>
@@ -174,7 +250,6 @@ export default function SettingsPanel() {
           </div>
       </div>
 
-      {/* REVENTA Y MARKETPLACE - AHORA ABAJO */}
       <div className="space-y-3">
           <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
              Reglas Comerciales
@@ -186,13 +261,19 @@ export default function SettingsPanel() {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">Permitir Reventa (Safe-Swap)</span>
-                <ToggleButton active={eventData.settings.allowMarketplace} onClick={() => updateSettings({ allowMarketplace: !eventData.settings.allowMarketplace })} />
+                <span className="text-xs text-zinc-300">Transferencia de Tickets</span>
+                <ToggleButton 
+                    active={eventData.settings?.is_transferable ?? true} 
+                    onClick={() => handleToggleRule('is_transferable')} 
+                />
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-300">Permitir Reventa con Sobreprecio</span>
-                <ToggleButton active={eventData.settings.allowOverprice} onClick={() => updateSettings({ allowOverprice: !eventData.settings.allowOverprice })} />
+                <span className="text-xs text-zinc-300">Reventa Oficial</span>
+                <ToggleButton 
+                    active={eventData.settings?.is_resellable ?? false} 
+                    onClick={() => handleToggleRule('is_resellable')} 
+                />
               </div>
           </div>
       </div>
@@ -211,7 +292,6 @@ function ToggleButton({ active, onClick }: ToggleButtonProps) {
 function VisibilityBtn({ active, onClick, icon, label, desc, disabled, variant }: VisibilityBtnProps) {
     const isGreen = variant === 'green'
     
-    // Estilos dinámicos basados en la variante y el estado activo
     const activeClass = isGreen 
         ? 'bg-[#00D15B]/10 border-[#00D15B] text-white shadow-[0_0_20px_rgba(0,209,91,0.1)]' 
         : 'bg-[#8A2BE2]/10 border-[#8A2BE2] text-white shadow-[0_0_20px_rgba(138,43,226,0.1)]'
