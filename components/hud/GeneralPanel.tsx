@@ -1,7 +1,7 @@
 'use client'
 import { useEventStore } from '@/store/useEventStore'
 import { Calendar, MapPin, Type, Clock, Tags, Navigation, Building2, Map as MapIcon, Hash, Loader2, Music } from 'lucide-react'
-import { useState, forwardRef, useMemo, useEffect } from 'react'
+import { useState, forwardRef, useMemo, useEffect, useRef } from 'react'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import "react-datepicker/dist/react-datepicker.css"
 import { es } from 'date-fns/locale/es'
@@ -145,7 +145,93 @@ const datePickerStyles = `
   .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item--selected { background-color: #9333ea !important; color: white !important; }
   .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list::-webkit-scrollbar { display: none; }
   .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list { -ms-overflow-style: none; scrollbar-width: none; }
+  
+  .custom-scrollbar-select::-webkit-scrollbar { width: 5px; }
+  .custom-scrollbar-select::-webkit-scrollbar-track { background: #18181b; border-radius: 10px; }
+  .custom-scrollbar-select::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
 `
+
+// --- NUEVO COMPONENTE CUSTOM SELECT ---
+function CustomSelect({ 
+    value, 
+    onChange, 
+    options, 
+    placeholder, 
+    disabled = false,
+    isLoading = false,
+    icon,
+    openUpwards = false,
+    menuClassName = "w-full"
+}: {
+    value: string;
+    onChange: (v: string) => void;
+    options: { value: string; label: string }[];
+    placeholder: string;
+    disabled?: boolean;
+    isLoading?: boolean;
+    icon?: React.ReactNode;
+    openUpwards?: boolean;
+    menuClassName?: string;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [selectRef]);
+
+    const selectedOption = options.find(o => o.value === value);
+
+    return (
+        <div className="relative w-full" ref={selectRef}>
+            <div
+                onClick={() => !disabled && !isLoading && setIsOpen(!isOpen)}
+                className={`w-full bg-zinc-900 border ${isOpen ? 'border-purple-600 ring-2 ring-purple-600/20' : 'border-zinc-800'} rounded-xl px-4 py-3 text-sm focus:outline-none flex justify-between items-center cursor-pointer transition-all ${disabled || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:border-zinc-700'}`}
+            >
+                <span className={`truncate mr-2 ${value ? 'text-white font-bold' : 'text-zinc-500 font-bold'}`}>
+                    {isLoading ? placeholder : (selectedOption ? selectedOption.label : placeholder)}
+                </span>
+                <div className="text-zinc-500 flex items-center gap-2 shrink-0">
+                    {isLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                        icon || <svg className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    )}
+                </div>
+            </div>
+            {isOpen && !disabled && !isLoading && (
+                <div className={`absolute z-50 ${menuClassName} ${openUpwards ? 'bottom-full mb-2' : 'top-full mt-2'} bg-[#18181b] border border-[#27272a] rounded-xl shadow-[0_20px_25px_-5px_rgb(0,0,0,0.5)] max-h-60 overflow-y-auto custom-scrollbar-select py-2`}>
+                    {options.length === 0 ? (
+                         <div className="px-4 py-2 text-sm text-[#a1a1aa] italic">Sin opciones</div>
+                    ) : (
+                        options.map(opt => (
+                            <div
+                                key={opt.value}
+                                onClick={() => {
+                                    onChange(opt.value);
+                                    setIsOpen(false);
+                                }}
+                                className={`px-4 py-1.5 text-sm truncate cursor-pointer transition-colors ${
+                                    value === opt.value
+                                        ? 'bg-[#9333ea] text-white font-bold'
+                                        : 'text-[#a1a1aa] hover:bg-[#27272a] hover:text-white'
+                                }`}
+                            >
+                                {opt.label}
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function GeneralPanel() {
   // Casting seguro para evitar errores si el store global no tiene los tipos actualizados
@@ -188,13 +274,6 @@ export default function GeneralPanel() {
     }
     fetchClubs()
   }, [])
-
-  const handleClubSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setEventVenue(e.target.value)
-    // Opcional: si tienes el ID, búscalo y setéalo también
-    const selected = clubs.find(c => c.name === e.target.value)
-    if (selected && setClubId) setClubId(selected.id) 
-  }
 
   // --- LÓGICA DE GÉNEROS MUSICALES ---
   const handleMusicToggle = (style: string) => {
@@ -449,26 +528,19 @@ export default function GeneralPanel() {
             <label className="text-xs font-bold text-zinc-400 flex items-center gap-2 uppercase">
                 <Building2 size={14} /> Lugar / Club
             </label>
-            <div className="relative">
-                <select
-                    value={eventData.venue || ''} 
-                    onChange={handleClubSelect}
-                    disabled={loadingClubs}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 text-white font-bold appearance-none cursor-pointer disabled:opacity-50"
-                >
-                    <option value="" disabled>
-                        {loadingClubs ? 'Cargando clubes...' : 'Seleccionar Club de la lista'}
-                    </option>
-                    {clubs.map((club) => (
-                        <option key={club.id} value={club.name}>
-                            {club.name}
-                        </option>
-                    ))}
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
-                    {loadingClubs ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />}
-                </div>
-            </div>
+            <CustomSelect 
+                value={eventData.venue || ''}
+                onChange={(val) => {
+                    setEventVenue(val);
+                    const selected = clubs.find(c => c.name === val);
+                    if (selected && setClubId) setClubId(selected.id);
+                }}
+                options={clubs.map(c => ({ value: c.name, label: c.name }))}
+                placeholder="Seleccionar Club de la lista"
+                disabled={loadingClubs}
+                isLoading={loadingClubs}
+                icon={<Building2 size={16} />}
+            />
         </div>
 
         <div className="space-y-3 pt-2">
@@ -482,38 +554,36 @@ export default function GeneralPanel() {
                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
                         <MapIcon size={10} /> Región
                     </label>
-                    <select
+                    <CustomSelect 
                         value={eventData.region || ''}
-                        onChange={(e) => {
+                        onChange={(val) => {
                             if (setEventRegion) {
-                                setEventRegion(e.target.value)
-                                if (setEventCommune) setEventCommune('') 
+                                setEventRegion(val);
+                                if (setEventCommune) setEventCommune('');
                             }
                         }}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 text-white font-medium appearance-none cursor-pointer"
-                    >
-                        <option value="" disabled>Seleccionar Región</option>
-                        {CHILE_DATA.map((item) => (
-                            <option key={item.region} value={item.region}>{item.region}</option>
-                        ))}
-                    </select>
+                        options={CHILE_DATA.map(item => ({ value: item.region, label: item.region }))}
+                        placeholder="Seleccionar Región"
+                        openUpwards={true}
+                        menuClassName="w-[calc(200%+0.75rem)]"
+                    />
                 </div>
 
                 <div className="space-y-2">
                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
                         <MapPin size={10} /> Comuna
                     </label>
-                    <select
+                    <CustomSelect 
                         value={eventData.commune || ''}
-                        onChange={(e) => setEventCommune && setEventCommune(e.target.value)}
+                        onChange={(val) => {
+                            if (setEventCommune) setEventCommune(val);
+                        }}
+                        options={availableCommunes.map(c => ({ value: c, label: c }))}
+                        placeholder="Seleccionar Comuna"
                         disabled={!eventData.region}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 text-white font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <option value="" disabled>Seleccionar Comuna</option>
-                        {availableCommunes.map((comuna) => (
-                            <option key={comuna} value={comuna}>{comuna}</option>
-                        ))}
-                    </select>
+                        openUpwards={true}
+                        menuClassName="w-[calc(200%+0.75rem)] right-0"
+                    />
                 </div>
             </div>
 
@@ -549,6 +619,4 @@ export default function GeneralPanel() {
       </div>
     </div>
   )
-
 }
-
