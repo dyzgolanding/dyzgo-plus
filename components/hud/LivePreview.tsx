@@ -439,7 +439,8 @@ function TicketSelectionPreview({ eventData, accent, font }: TicketPreviewProps)
                             return (
                                 <div key={tier.id} className={`flex items-center justify-between bg-white/5 border rounded-2xl p-4 transition-all ${isSelected ? '' : 'border-white/10'}`} style={isSelected ? { borderColor: accent } : {}}>
                                     <div className="flex-1 pr-4">
-                                        <h4 className="font-black text-lg mb-0.5 uppercase" style={isSelected ? { color: accent } : { color: 'white' }}>{tier.name}</h4>
+                                        {/* REMOVIDO EL UPPERCASE AQUÍ */}
+                                        <h4 className="font-black text-lg mb-0.5" style={isSelected ? { color: accent } : { color: 'white' }}>{tier.name}</h4>
                                         {tier.description && <p className="text-zinc-400 text-xs mb-1 font-medium">{tier.description}</p>}
                                         <p className="text-white font-bold text-sm">${tier.price?.toLocaleString('es-CL')}</p>
                                     </div>
