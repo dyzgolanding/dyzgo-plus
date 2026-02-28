@@ -60,7 +60,7 @@ const INITIAL_TICKET_STATE = {
   isNominative: false, 
   type: 'paid' as const, 
   color: 'purple',
-  ticketsIncluded: 1
+  ticketsIncluded: 1 as string | number 
 }
 
 const datePickerStyles = `
@@ -213,8 +213,12 @@ export default function TicketPanel() {
   const handleAdd = () => {
     if (!newTicketForm.name || (newTicketForm.type === 'paid' && !newTicketForm.price)) return
     
-    // Validamos que sea al menos 1
-    const finalTicketsIncluded = Math.max(1, Number(newTicketForm.ticketsIncluded) || 1);
+    const finalTicketsIncluded = Number(newTicketForm.ticketsIncluded);
+    
+    if (newTicketForm.type === 'paid' && finalTicketsIncluded < 1) {
+        alert("No se pueden mandar 0 entradas por compra.");
+        return;
+    }
 
     addTicket({
         ...newTicketForm,
@@ -313,7 +317,13 @@ export default function TicketPanel() {
                                 type="number" 
                                 min="1"
                                 value={newTicketForm.ticketsIncluded} 
-                                onChange={(e) => setNewTicketForm({...newTicketForm, ticketsIncluded: Math.max(1, Number(e.target.value))})} 
+                                onChange={(e) => setNewTicketForm({...newTicketForm, ticketsIncluded: e.target.value})} 
+                                onBlur={(e) => {
+                                    if (Number(e.target.value) < 1) {
+                                        alert("No se pueden mandar 0 entradas por compra.");
+                                        setNewTicketForm({...newTicketForm, ticketsIncluded: 1});
+                                    }
+                                }}
                                 className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 text-center font-bold" 
                             />
                         </div>
@@ -467,8 +477,14 @@ export default function TicketPanel() {
                                         <input 
                                             type="number" 
                                             min="1"
-                                            value={t.ticketsIncluded || 1} 
-                                            onChange={(e) => updateTicket(t.id, { ticketsIncluded: Math.max(1, Number(e.target.value)) })} 
+                                            value={t.ticketsIncluded ?? ''} 
+                                            onChange={(e) => updateTicket(t.id, { ticketsIncluded: e.target.value as unknown as number })} 
+                                            onBlur={(e) => {
+                                                if (Number(e.target.value) < 1) {
+                                                    alert("No se pueden mandar 0 entradas por compra.");
+                                                    updateTicket(t.id, { ticketsIncluded: 1 });
+                                                }
+                                            }}
                                             className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 text-center font-bold" 
                                         />
                                     </div>
@@ -535,5 +551,3 @@ export default function TicketPanel() {
     </div>
   )
 }
-
-
