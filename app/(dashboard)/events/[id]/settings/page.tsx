@@ -96,14 +96,20 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
     if (deleteInput !== 'DELETE') return
     setIsDeleting(true)
     try {
+      // 1. Intentamos eliminar los tickets asociados primero (si no hay CASCADE en BD)
+      await supabase.from('ticket_tiers').delete().eq('event_id', eventId)
+
+      // 2. Eliminamos el evento
       const { error } = await supabase.from('events').delete().eq('id', eventId)
       if (error) throw error
+      
       setIsDeleteModalOpen(false)
       setIsDirty(false); router.push('/events') 
-    } catch (error) { 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) { 
         // eslint-disable-next-line no-console
-        console.error(error); 
-        alert("No se pudo eliminar el evento.") 
+        console.error("Detalle del error:", error); 
+        alert("No se pudo eliminar el evento. Es probable que tenga ventas o registros asociados que bloquean el borrado.\n\nDetalle: " + (error?.message || JSON.stringify(error))) 
     } finally { setIsDeleting(false) }
   }
 
