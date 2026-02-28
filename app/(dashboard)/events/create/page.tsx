@@ -10,7 +10,7 @@ import DesignPanel from '@/components/hud/DesignPanel'
 import SettingsPanel from '@/components/hud/SettingsPanel'
 import ExperiencePanel from '@/components/hud/ExperiencePanel' 
 
-import { Ticket, Sparkles, LayoutDashboard, Palette, Settings, Loader2, AlignLeft, ArrowLeft, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Ticket, Sparkles, LayoutDashboard, Palette, Settings, Loader2, AlignLeft, ArrowLeft, CheckCircle2, AlertTriangle, Eye, FileText } from 'lucide-react'
 import { useEventStore } from '@/store/useEventStore'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -277,6 +277,9 @@ function CreateEventContent() {
           }
       }
 
+      // Asegurarnos de que el status se asigne correctamente desde el SettingsPanel o asuma draft
+      const finalStatus = eventData.status || 'draft'
+
       // 2. Guardar Evento
       const eventPayload = {
         organizer_id: user.id,
@@ -302,7 +305,8 @@ function CreateEventContent() {
         instagram_url: eventData.socialLinks.instagram,
         category: eventData.category,
         theme_color: eventData.themeColor,
-        is_active: true
+        is_active: true,
+        status: finalStatus // <--- IMPORTANTE: Incluir el status en el guardado
       }
 
       let currentEventId = eventId
@@ -367,7 +371,7 @@ function CreateEventContent() {
       setShowUnsavedModal(false);
 
       if (!eventId) {
-          // Si es un evento nuevo, mostramos el modal para elegir estado
+          // Si es un evento nuevo, mostramos el modal para elegir/confirmar estado
           setNewlyCreatedId(currentEventId);
           setShowStatusModal(true);
       } else {
@@ -396,6 +400,9 @@ function CreateEventContent() {
         default: return <GeneralPanel />
     }
   }
+
+  // Variables para simplificar el renderizado dinámico del modal de estado
+  const isCurrentlyPublic = eventData.status === 'active'
 
   return (
     <div className="flex h-screen w-full bg-[#09090b] text-white overflow-hidden font-sans relative">
@@ -491,38 +498,50 @@ function CreateEventContent() {
         </div>
       )}
 
-      {/* --- MODAL ESTADO DEL EVENTO NUEVO --- */}
+      {/* --- MODAL ESTADO DEL EVENTO NUEVO DINÁMICO --- */}
       {showStatusModal && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
             <div className="relative w-full max-w-sm bg-[#09090b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 fade-in duration-300 text-center">
-                <div className="p-4 bg-green-500/10 rounded-full text-green-500 border border-green-500/20 mb-6 inline-block shadow-[0_0_30px_rgba(34,197,94,0.2)]">
-                    <Sparkles size={32} />
+                
+                {/* ICONO DINÁMICO */}
+                <div className={`p-4 rounded-full mb-6 inline-block shadow-[0_0_30px_rgba(0,0,0,0.2)] border ${isCurrentlyPublic ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-purple-500/10 text-purple-500 border-purple-500/20'}`}>
+                    {isCurrentlyPublic ? <Eye size={32} /> : <FileText size={32} />}
                 </div>
+                
                 <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">¡Evento Creado!</h3>
+                
+                {/* MENSAJE DINÁMICO */}
                 <p className="text-white/40 text-xs font-medium mb-8 leading-relaxed">
-                    ¿Deseas publicarlo ahora para que sea visible en la app o dejarlo en borrador?
+                    {isCurrentlyPublic 
+                        ? 'Tu evento ha sido creado y actualmente está configurado como Público. ¿Deseas mantenerlo así o pasarlo a borrador?'
+                        : 'Tu evento ha sido creado y actualmente está configurado como Borrador. ¿Deseas publicarlo ahora o dejarlo así?'}
                 </p>
+
+                {/* BOTONES DINÁMICOS */}
                 <div className="flex flex-col gap-3">
+                    
+                    {/* BOTON PRIMARIO (Mantiene el estado actual) */}
                     <button 
                         onClick={async () => {
                             setStatusLoading('public');
-                            if (newlyCreatedId) {
-                                await supabase.from('events').update({ status: 'active' }).eq('id', newlyCreatedId);
-                            }
+                            // No hace falta actualizar, ya se guardó con este estado
                             setShowStatusModal(false);
                             router.push('/events');
                         }}
                         disabled={statusLoading !== null}
-                        className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl text-white font-black text-xs hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                        className={`w-full py-4 rounded-2xl text-white font-black text-xs hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 ${isCurrentlyPublic ? 'bg-gradient-to-r from-green-500 to-emerald-600 shadow-green-900/20' : 'bg-gradient-to-r from-[#8A2BE2] to-[#7c3aed] shadow-purple-900/20'}`}
                     >
-                        {statusLoading === 'public' ? <Loader2 className="animate-spin" size={14}/> : 'Hacer Público'}
+                        {statusLoading === 'public' ? <Loader2 className="animate-spin" size={14}/> : (isCurrentlyPublic ? 'Mantener Público' : 'Dejar en Borrador')}
                     </button>
+                    
+                    {/* BOTON SECUNDARIO (Cambia el estado) */}
                     <button 
                         onClick={async () => {
                             setStatusLoading('draft');
+                            const targetStatus = isCurrentlyPublic ? 'draft' : 'active';
                             if (newlyCreatedId) {
-                                await supabase.from('events').update({ status: 'draft' }).eq('id', newlyCreatedId);
+                                await supabase.from('events').update({ status: targetStatus }).eq('id', newlyCreatedId);
                             }
                             setShowStatusModal(false);
                             router.push('/events');
@@ -530,8 +549,9 @@ function CreateEventContent() {
                         disabled={statusLoading !== null}
                         className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-zinc-400 font-bold text-xs hover:bg-white/10 hover:text-white transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                        {statusLoading === 'draft' ? <Loader2 className="animate-spin" size={14}/> : 'Dejar en Borrador'}
+                        {statusLoading === 'draft' ? <Loader2 className="animate-spin" size={14}/> : (isCurrentlyPublic ? 'Cambiar a Borrador' : 'Hacer Público')}
                     </button>
+
                 </div>
             </div>
         </div>
