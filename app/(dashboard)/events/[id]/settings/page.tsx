@@ -295,22 +295,22 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
 
             {/* COLUMNA DERECHA (PELIGRO) */}
             <div className="lg:col-span-4 space-y-8">
-                <section className="bg-[#FF007F]/5 border border-[#FF007F]/20 rounded-[2.5rem] p-8 relative overflow-hidden flex flex-col backdrop-blur-xl shadow-[0_0_40px_rgba(255,0,127,0.05)]">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,0,127,0.1),transparent_70%)] pointer-events-none" />
+                <section className="bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-[2.5rem] p-8 relative overflow-hidden flex flex-col backdrop-blur-xl shadow-[0_0_40px_rgba(239,68,68,0.05)]">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(239,68,68,0.1),transparent_70%)] pointer-events-none" />
                     
-                    <div className="flex items-center gap-3 mb-6 text-[#FF007F] relative z-10">
-                        <div className="p-2 bg-[#FF007F]/10 rounded-xl border border-[#FF007F]/20"><AlertTriangle size={20} /></div>
+                    <div className="flex items-center gap-3 mb-6 text-[#EF4444] relative z-10">
+                        <div className="p-2 bg-[#EF4444]/10 rounded-xl border border-[#EF4444]/20"><AlertTriangle size={20} /></div>
                         <h3 className="text-lg font-black uppercase tracking-wide">Zona de Peligro</h3>
                     </div>
                     
-                    <p className="text-xs text-[#FF007F]/70 font-medium mb-8 leading-relaxed relative z-10 bg-[#FF007F]/5 p-4 rounded-2xl border border-[#FF007F]/10">
+                    <p className="text-xs text-[#EF4444]/70 font-medium mb-8 leading-relaxed relative z-10 bg-[#EF4444]/5 p-4 rounded-2xl border border-[#EF4444]/10">
                         Las acciones en esta zona son irreversibles. Eliminar el evento borrará permanentemente todos los datos asociados, incluyendo tickets y registros de ventas.
                     </p>
                     
                     <div className="relative z-10">
                         <button 
                             onClick={() => setIsDeleteModalOpen(true)} 
-                            className="w-full py-4 bg-[#FF007F]/10 hover:bg-[#FF007F] text-[#FF007F] hover:text-white border border-[#FF007F]/30 hover:border-[#FF007F] text-xs font-black rounded-2xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest group shadow-[0_0_20px_rgba(255,0,127,0.1)] hover:shadow-[0_0_30px_rgba(255,0,127,0.4)]"
+                            className="w-full py-4 bg-[#EF4444]/10 hover:bg-[#EF4444] text-[#EF4444] hover:text-white border border-[#EF4444]/30 hover:border-[#EF4444] text-xs font-black rounded-2xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest group shadow-[0_0_20px_rgba(239,68,68,0.1)] hover:shadow-[0_0_30px_rgba(239,68,68,0.4)]"
                         >
                             <Trash2 size={16} className="group-hover:scale-110 transition-transform"/> Eliminar Evento
                         </button>
@@ -355,15 +355,15 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
         {isDeleteModalOpen && (
             <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 animate-in fade-in duration-300">
             <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={() => setIsDeleteModalOpen(false)} />
-            <div className="relative w-full max-w-xl bg-[#050505]/95 backdrop-blur-2xl border border-[#FF007F]/20 rounded-[3rem] p-12 shadow-[0_0_60px_rgba(255,0,127,0.15)] animate-in zoom-in-95 text-center">
-                <div className="flex justify-center mb-8"><div className="p-6 bg-[#FF007F]/10 rounded-full text-[#FF007F] animate-pulse ring-1 ring-[#FF007F]/20 shadow-[0_0_30px_rgba(255,0,127,0.2)]"><AlertCircle size={56} /></div></div>
+            <div className="relative w-full max-w-xl bg-[#050505]/95 backdrop-blur-2xl border border-[#EF4444]/20 rounded-[3rem] p-12 shadow-[0_0_60px_rgba(239,68,68,0.15)] animate-in zoom-in-95 text-center">
+                <div className="flex justify-center mb-8"><div className="p-6 bg-[#EF4444]/10 rounded-full text-[#EF4444] animate-pulse ring-1 ring-[#EF4444]/20 shadow-[0_0_30px_rgba(239,68,68,0.2)]"><AlertCircle size={56} /></div></div>
                 <h3 className="text-3xl font-black text-white tracking-tighter leading-none mb-4 uppercase">¿Estás seguro?</h3>
-                <p className="text-white/60 text-sm font-medium mb-10 leading-relaxed px-4">Esta acción eliminará <span className="text-white font-bold">permanentemente</span> el evento. Escribe <span className="text-[#FF007F] font-black tracking-widest uppercase">DELETE</span> para confirmar.</p>
+                <p className="text-white/60 text-sm font-medium mb-10 leading-relaxed px-4">Esta acción eliminará <span className="text-white font-bold">permanentemente</span> el evento. Escribe <span className="text-[#EF4444] font-black tracking-widest uppercase">DELETE</span> para confirmar.</p>
                 <div className="space-y-6">
-                <input value={deleteInput} onChange={(e) => setDeleteInput(e.target.value)} placeholder="Escribe DELETE..." className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-center text-sm font-black text-white focus:border-[#FF007F] outline-none shadow-inner transition-all tracking-[0.2em] placeholder:text-white/20" />
+                <input value={deleteInput} onChange={(e) => setDeleteInput(e.target.value)} placeholder="Escribe DELETE..." className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-center text-sm font-black text-white focus:border-[#EF4444] outline-none shadow-inner transition-all tracking-[0.2em] placeholder:text-white/20" />
                 <div className="flex gap-4">
                     <button onClick={() => { setIsDeleteModalOpen(false); setDeleteInput(''); }} className="flex-1 py-5 bg-white/5 text-white/40 font-bold rounded-2xl hover:text-white transition-all text-xs uppercase tracking-widest border border-white/5 hover:bg-white/10">Cancelar</button>
-                    <button onClick={handleFinalDelete} disabled={deleteInput !== 'DELETE' || isDeleting} className="flex-[1.5] py-5 bg-[#FF007F] text-white font-black rounded-2xl disabled:opacity-20 disabled:grayscale hover:bg-[#FF007F]/90 transition-all shadow-[0_0_30px_rgba(255,0,127,0.4)] uppercase tracking-widest text-xs flex items-center justify-center gap-3">{isDeleting ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />} Borrar Evento</button>
+                    <button onClick={handleFinalDelete} disabled={deleteInput !== 'DELETE' || isDeleting} className="flex-[1.5] py-5 bg-[#EF4444] text-white font-black rounded-2xl disabled:opacity-20 disabled:grayscale hover:bg-[#EF4444]/90 transition-all shadow-[0_0_30px_rgba(239,68,68,0.4)] uppercase tracking-widest text-xs flex items-center justify-center gap-3">{isDeleting ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />} Borrar Evento</button>
                 </div>
                 </div>
             </div>
