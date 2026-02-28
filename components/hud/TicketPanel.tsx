@@ -205,7 +205,7 @@ export default function TicketPanel() {
   // eslint-disable-next-line react/display-name
   const CustomInput = forwardRef<HTMLDivElement, CustomInputProps>(({ value, onClick, placeholder, icon }, ref) => (
     <div onClick={onClick} ref={ref} className="relative w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 cursor-pointer hover:border-zinc-600 transition-colors flex items-center justify-between gap-3 h-[38px]">
-        <span className={`text-xs ${value ? 'text-zinc-300' : 'text-zinc-600'}`}>{value || placeholder}</span>
+        <span className={`text-xs ${value ? 'text-zinc-300' : 'text-zinc-600'}`}>{value || 'Seleccionar'}</span>
         <div className="text-zinc-500">{icon}</div>
     </div>
   ))
