@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useOrg } from '@/components/providers/org-provider'
-import { differenceInDays, formatDistanceToNow, subHours } from 'date-fns'
+import { differenceInDays, differenceInHours, formatDistanceToNow, subHours } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 // ESTILOS PARA SCROLLBAR PERSONALIZADO
@@ -44,6 +44,7 @@ interface NextEventData {
   id: string
   title: string
   date: string
+  hour: string
   image_url: string
   sold: number
   stock: number
@@ -144,11 +145,15 @@ export default function GeneralDashboard() {
             setGlobalStats(prev => ({
                 ...prev,
                 balanceAvailable: totalRevenue,
-                activeEventsCount: eventsData.length,
+                activeEventsCount: eventsData.filter(e => e.status === 'active').length,
                 salesTrend: 12 
             }))
 
-            const upcoming = eventsData.filter(e => new Date(e.date) >= new Date(new Date().setHours(0,0,0,0)))
+            const upcoming = eventsData.filter(e => {
+                if (e.status !== 'active') return false
+                const eventDateTime = new Date(`${e.date.split('T')[0]}T${(e.hour || '00:00').substring(0, 5)}:00`)
+                return eventDateTime > new Date()
+            })
             const next = upcoming.length > 0 ? upcoming[0] : null
 
             if (next) {
@@ -161,6 +166,7 @@ export default function GeneralDashboard() {
                     id: next.id,
                     title: next.title,
                     date: next.date,
+                    hour: next.hour,
                     image_url: next.image_url,
                     sold,
                     stock: totalStock,
@@ -185,7 +191,7 @@ export default function GeneralDashboard() {
                 }
             }))
 
-            const matrix = eventsData.slice(0, 5).map(evt => {
+            const matrix = eventsData.map(evt => {
                 const evtTickets = ticketsData.filter(t => t.event_id === evt.id)
                 const revenue = evtTickets.reduce((sum, t) => {
                     let price = Number(t.paid_price)
@@ -197,12 +203,20 @@ export default function GeneralDashboard() {
                     id: evt.id,
                     title: evt.title,
                     image_url: evt.image_url,
-                    status: new Date(evt.date) < new Date() ? 'Finalizado' : 'Activo',
+                    status: evt.status === 'active' ? 'Activo' : 'Finalizado',
                     sold: evtTickets.length,
                     revenue
                 }
             })
-            setActiveEventsMatrix(matrix)
+
+            // Ordenamos para que los Activos salgan de primero
+            matrix.sort((a, b) => {
+                if (a.status === 'Activo' && b.status === 'Finalizado') return -1
+                if (a.status === 'Finalizado' && b.status === 'Activo') return 1
+                return 0
+            })
+
+            setActiveEventsMatrix(matrix.slice(0, 5))
 
             const alerts: AlertItem[] = []
             const now = new Date()
@@ -358,9 +372,25 @@ export default function GeneralDashboard() {
                           </h3>
                       </div>
                       {nextEvent && (
-                          <div className="text-right bg-white/5 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
-                              <span className="block text-2xl font-black text-white">{differenceInDays(new Date(nextEvent.date), new Date())}</span>
-                              <span className="text-[9px] text-white/50 uppercase font-bold tracking-wider">Días</span>
+                          <div className="flex flex-col items-center justify-center text-center bg-white/5 backdrop-blur-md p-4 rounded-3xl border border-white/10 aspect-square w-24 h-24">
+                              <span className="text-4xl font-black text-white leading-none">
+                                  {differenceInHours(new Date(`${nextEvent.date.split('T')[0]}T${(nextEvent.hour || '00:00').substring(0, 5)}:00`), new Date()) < 24 
+                                      ? Math.max(0, differenceInHours(new Date(`${nextEvent.date.split('T')[0]}T${(nextEvent.hour || '00:00').substring(0, 5)}:00`), new Date()))
+                                      : differenceInDays(new Date(`${nextEvent.date.split('T')[0]}T${(nextEvent.hour || '00:00').substring(0, 5)}:00`), new Date())}
+                              </span>
+                              <span className="text-[10px] text-white/50 uppercase font-bold tracking-wider mt-1.5">
+                                  {(() => {
+                                      const timeLeftHours = differenceInHours(new Date(`${nextEvent.date.split('T')[0]}T${(nextEvent.hour || '00:00').substring(0, 5)}:00`), new Date());
+                                      const isHours = timeLeftHours < 24;
+                                      const value = isHours ? Math.max(0, timeLeftHours) : differenceInDays(new Date(`${nextEvent.date.split('T')[0]}T${(nextEvent.hour || '00:00').substring(0, 5)}:00`), new Date());
+                                      
+                                      if (isHours) {
+                                          return value === 1 ? 'Hora restante' : 'Horas restantes';
+                                      } else {
+                                          return value === 1 ? 'Día restante' : 'Días restantes';
+                                      }
+                                  })()}
+                              </span>
                           </div>
                       )}
                   </div>
