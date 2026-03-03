@@ -39,14 +39,32 @@ export default function RootLayout({
         {/* Estilos del chat de n8n */}
         <link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet" />
         
-        {/* Script del chat de n8n */}
+{/* Script del chat de n8n customizado para Dyzgo */}
         <script 
           type="module" 
           dangerouslySetInnerHTML={{ 
             __html: `
               import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
               createChat({
-                webhookUrl: 'https://dyzgo.app.n8n.cloud/webhook/05f4d234-c902-4908-b77e-67e29d2cdb29/chat'
+                webhookUrl: 'AQUI_PEGA_LA_URL_QUE_COPIASTE',
+                initialMessages: [
+                  '¡Hola! 👋 Soy el asistente virtual de Dyzgo.',
+                  '¿En qué te puedo ayudar hoy con tus eventos o entradas?'
+                ],
+                i18n: {
+                  en: {
+                    title: 'Soporte Dyzgo',
+                    subtitle: 'Resolvemos tus dudas 24/7.',
+                    footer: '',
+                    getStarted: 'Nueva conversación',
+                    inputPlaceholder: 'Escribe tu pregunta...',
+                  },
+                },
+                theme: {
+                  colors: {
+                    primary: '#F04D6A', /* Aquí puedes poner el código HEX exacto de tu color rosado/rojo */
+                  }
+                }
               });
             ` 
           }} 
