@@ -46,7 +46,7 @@ export default function RootLayout({
             __html: `
               import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
               createChat({
-                webhookUrl: 'AQUI_PEGA_LA_URL_QUE_COPIASTE',
+                webhookUrl: 'https://dyzgo.app.n8n.cloud/webhook/05f4d234-c902-4908-b77e-67e29d2cdb29/chat',
                 initialMessages: [
                   '¡Hola! 👋 Soy el asistente virtual de Dyzgo.',
                   '¿En qué te puedo ayudar hoy con tus eventos o entradas?'
