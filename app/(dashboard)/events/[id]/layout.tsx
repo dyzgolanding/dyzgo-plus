@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState, use } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { ArrowLeft, Settings, Users, BarChart3, Share2, Edit3, Loader2, Gift, IdCard } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { ArrowLeft, Settings, Users, BarChart3, Share2, Edit3, Loader2, Gift, IdCard, ShieldX } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 // 1. Definimos la interfaz para el evento para evitar 'any'
@@ -12,6 +12,7 @@ interface EventData {
   club_name: string
   date: string
   status: string
+  organizer_id: string
 }
 
 // 2. Definimos la interfaz para las props del Tab
@@ -24,31 +25,56 @@ interface EventTabProps {
 
 export default function EventLayout({ children, params }: { children: React.ReactNode, params: Promise<{ id: string }> }) {
   const pathname = usePathname()
-  
+  const router = useRouter()
+
   const resolvedParams = use(params)
   const eventId = resolvedParams.id
 
   // 3. Aplicamos el tipado al estado
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [unauthorized, setUnauthorized] = useState(false)
 
   useEffect(() => {
     async function getEventTitle() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.replace('/login')
+        return
+      }
+
       const { data } = await supabase
         .from('events')
-        .select('title, club_name, date, status')
+        .select('title, club_name, date, status, organizer_id')
         .eq('id', eventId)
         .single()
-      
-      if (data) setEvent(data as EventData)
+
+      if (!data || data.organizer_id !== user.id) {
+        setUnauthorized(true)
+        setLoading(false)
+        return
+      }
+
+      setEvent(data as EventData)
       setLoading(false)
     }
     getEventTitle()
-  }, [eventId])
+  }, [eventId, router])
 
   if (loading) return (
     <div className="h-screen w-full flex items-center justify-center bg-black">
       <Loader2 className="animate-spin text-purple-500" />
+    </div>
+  )
+
+  if (unauthorized) return (
+    <div className="h-screen w-full flex flex-col items-center justify-center bg-black gap-4">
+      <ShieldX size={48} className="text-red-500" />
+      <p className="text-white font-bold text-lg">Acceso denegado</p>
+      <p className="text-zinc-400 text-sm">No tienes permiso para ver este evento.</p>
+      <Link href="/events" className="mt-2 px-4 py-2 bg-zinc-900 border border-zinc-700 text-zinc-300 rounded-lg text-sm hover:text-white transition-colors">
+        Volver a mis eventos
+      </Link>
     </div>
   )
 
