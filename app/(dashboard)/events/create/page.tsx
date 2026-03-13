@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { Ticket, Sparkles, LayoutDashboard, Palette, Settings, Loader2, AlignLeft, ArrowLeft, CheckCircle2, AlertTriangle, Eye, FileText } from 'lucide-react'
+import { Ticket, Sparkles, LayoutDashboard, Palette, Settings, Loader2, AlignLeft, ArrowLeft, CheckCircle2, AlertTriangle, Eye, FileText, ShieldAlert } from 'lucide-react'
 
 const PanelFallback = () => (
   <div className="flex items-center justify-center h-64 text-white/30">
@@ -10,7 +10,7 @@ const PanelFallback = () => (
   </div>
 )
 
-// Lazy loading: cada panel se carga solo cuando el usuario lo selecciona
+// Lazy loading
 const LivePreview     = dynamic(() => import('@/components/hud/LivePreview'),     { ssr: false, loading: PanelFallback })
 const GeneralPanel    = dynamic(() => import('@/components/hud/GeneralPanel'),    { ssr: false, loading: PanelFallback })
 const TicketPanel     = dynamic(() => import('@/components/hud/TicketPanel'),     { ssr: false, loading: PanelFallback })
@@ -56,7 +56,7 @@ function safeUUID() {
   });
 }
 
-// --- FUNCIÓN DE GEOLOCALIZACIÓN (LIMPIA) ---
+// --- FUNCIÓN DE GEOLOCALIZACIÓN ---
 async function getCoordinates(address: string) {
   try {
     const queryAddress = address.toLowerCase().includes('chile') ? address : `${address}, Chile`;
@@ -83,22 +83,25 @@ async function getCoordinates(address: string) {
   }
 }
 
-// --- COMPONENTE INTERNO CON LA LÓGICA (CLIENT COMPONENT) ---
+// --- COMPONENTE INTERNO CON LA LÓGICA ---
 function CreateEventContent() {
   const { activeSection, setActiveSection, eventData } = useEventStore()
   const [loading, setLoading] = useState(false)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
   
-  // --- NUEVOS ESTADOS PARA CONTROL DE CAMBIOS ---
+  // Estados de seguridad
+  const [authChecked, setAuthChecked] = useState(false)
+  const [unauthorized, setUnauthorized] = useState(false) 
+  
+  // Estados para control de cambios
   const [showUnsavedModal, setShowUnsavedModal] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
 
-  // --- ESTADOS PARA MODAL DE PUBLICACIÓN ---
+  // Estados para modal de publicación
   const [showStatusModal, setShowStatusModal] = useState(false)
   const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null)
   const [statusLoading, setStatusLoading] = useState<'public' | 'draft' | null>(null)
   
-  // Referencias para que los eventos del navegador siempre tengan el valor actualizado
   const initialDataRef = useRef<string>('') 
   const isDirtyRef = useRef<boolean>(false)
 
@@ -106,77 +109,102 @@ function CreateEventContent() {
   const searchParams = useSearchParams()
   const eventId = searchParams.get('id')
 
-  // --- LÓGICA DE CARGA Y CONTROL DE CAMBIOS ---
+  // --- LÓGICA DE CARGA Y VERIFICACIÓN DE SEGURIDAD ---
   useEffect(() => {
-    // Si estamos creando un evento nuevo (sin ID), guardamos el estado inicial por defecto
-    if (!eventId && !initialDataRef.current) {
+    if (!eventId) {
+      if (!initialDataRef.current) {
         initialDataRef.current = JSON.stringify(eventData);
+      }
+      setAuthChecked(true)
+      return
     }
 
     if (eventId) {
       const loadEventData = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { router.replace('/login'); return }
+
         const { data: event, error } = await supabase
           .from('events')
           .select('*, ticket_tiers(*)')
           .eq('id', eventId)
           .single()
 
-        if (event && !error) {
-          const loadedState = {
-              ...eventData, 
-              id: event.id,
-              name: event.title || '',
-              venue: event.club_name || '',
-              address: event.location || '',
-              region: event.region || '',
-              commune: event.commune || '',
-              street: event.street || '',
-              number: event.street_number || '',
-              date: event.date || '',
-              startTime: event.hour || '', 
-              endTime: event.end_time || '',
-              endDate: event.end_date || '', 
-              description: event.description || '',
-              coverImage: event.image_url,
-              themeColor: event.theme_color || '#8A2BE2',
-              category: event.category || '',
-              dressCode: event.dress_code || '',
-              minAgeMen: event.min_age_men || 0,
-              minAgeWomen: event.min_age_women || 0,
-              prohibitedItems: event.prohibited_items || [],
-              socialLinks: { instagram: event.instagram_url || '' },
-              status: event.status || 'draft', 
-              
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              tickets: event.ticket_tiers ? (event.ticket_tiers as any[]).map((t: TicketTierDB) => ({
-                id: t.id,
-                name: t.name,
-                price: t.price,
-                quantity: t.total_stock,
-                sold: t.sold_tickets || 0, 
-                description: t.description,
-                isActive: t.is_active,
-                isNominative: t.nominative,
-                isGhostSoldOut: t.fake_sold,
-                startDate: t.sales_start_at ? new Date(t.sales_start_at).toISOString().slice(0, 16) : '',
-                endDate: t.sales_end_at ? new Date(t.sales_end_at).toISOString().slice(0, 16) : '',
-                color: 'purple', 
-                dependencyId: '' 
-              })) : [],
-
-              settings: {
-                isPrivate: event.status === 'draft', 
-                absorbFee: false,
-                showRemaining: true,
-                allowMarketplace: true,
-                allowOverprice: false,
-                showInstagram: !!event.instagram_url
-              }
-          };
-
-          useEventStore.setState((state) => ({ ...state, eventData: loadedState }));
-          initialDataRef.current = JSON.stringify(loadedState);
+        // === AUDITORÍA FORENSE INYECTADA ===
+        console.log("=========================================");
+        console.log("=== AUDITORÍA DE SEGURIDAD DYZGO+ ===");
+        console.log("1. Mi ID de usuario actual:", user.id);
+        console.log("2. ID del organizador del evento en DB:", event?.organizer_id);
+        console.log("3. ¿El evento trajo datos?:", !!event);
+        console.log("4. ¿Hubo error de seguridad RLS?:", error);
+        if (event) {
+          console.log("5. ¿Soy el dueño directo?:", user.id === event.organizer_id);
+          console.log("6. Título del evento interceptado:", event.title);
         }
+        console.log("=========================================");
+        // ===================================
+
+        // Si hay error o no hay evento, BLOQUEAMOS COMPLETAMENTE LA PANTALLA
+        if (error || !event) {
+          setUnauthorized(true)
+          return
+        }
+
+        const loadedState = {
+            ...eventData, 
+            id: event.id,
+            name: event.title || '',
+            venue: event.club_name || '',
+            address: event.location || '',
+            region: event.region || '',
+            commune: event.commune || '',
+            street: event.street || '',
+            number: event.street_number || '',
+            date: event.date || '',
+            startTime: event.hour || '', 
+            endTime: event.end_time || '',
+            endDate: event.end_date || '', 
+            description: event.description || '',
+            coverImage: event.image_url,
+            themeColor: event.theme_color || '#8A2BE2',
+            category: event.category || '',
+            dressCode: event.dress_code || '',
+            minAgeMen: event.min_age_men || 0,
+            minAgeWomen: event.min_age_women || 0,
+            prohibitedItems: event.prohibited_items || [],
+            socialLinks: { instagram: event.instagram_url || '' },
+            status: event.status || 'draft', 
+            
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            tickets: event.ticket_tiers ? (event.ticket_tiers as any[]).map((t: TicketTierDB) => ({
+              id: t.id,
+              name: t.name,
+              price: t.price,
+              quantity: t.total_stock,
+              sold: t.sold_tickets || 0, 
+              description: t.description,
+              isActive: t.is_active,
+              isNominative: t.nominative,
+              isGhostSoldOut: t.fake_sold,
+              startDate: t.sales_start_at ? new Date(t.sales_start_at).toISOString().slice(0, 16) : '',
+              endDate: t.sales_end_at ? new Date(t.sales_end_at).toISOString().slice(0, 16) : '',
+              color: 'purple', 
+              dependencyId: '' 
+            })) : [],
+
+            settings: {
+              isPrivate: event.status === 'draft', 
+              absorbFee: false,
+              showRemaining: true,
+              allowMarketplace: true,
+              allowOverprice: false,
+              showInstagram: !!event.instagram_url
+            }
+        };
+
+        useEventStore.setState((state) => ({ ...state, eventData: loadedState }));
+        initialDataRef.current = JSON.stringify(loadedState);
+        setAuthChecked(true)
       }
       loadEventData()
     }
@@ -189,11 +217,10 @@ function CreateEventContent() {
           const currentString = JSON.stringify(eventData);
           const hasChanges = currentString !== initialDataRef.current;
           setIsDirty(hasChanges);
-          isDirtyRef.current = hasChanges; // Sincronizamos la ref para el popstate
+          isDirtyRef.current = hasChanges;
       }
   }, [eventData]);
 
-  // --- 1. INTERCEPTAR RECARGA O CIERRE DE PESTAÑA (NATIVO) ---
   useEffect(() => {
       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
           if (isDirty) {
@@ -205,18 +232,14 @@ function CreateEventContent() {
       return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
-  // --- 2. INTERCEPTAR BOTÓN ATRÁS DEL NAVEGADOR (POPSTATE) ---
   useEffect(() => {
-    // Inyectamos un estado "trampa" en el historial al cargar el componente
     window.history.pushState(null, '', window.location.href);
 
     const handlePopState = () => {
         if (isDirtyRef.current) {
-            // Si hay cambios sin guardar, restauramos la trampa y mostramos el modal
             window.history.pushState(null, '', window.location.href);
             setShowUnsavedModal(true);
         } else {
-            // Si NO hay cambios, ejecutamos un back extra para salir realmente
             window.history.back();
         }
     };
@@ -225,7 +248,6 @@ function CreateEventContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // --- 3. INTERCEPTAR BOTÓN VOLVER DE LA UI ---
   const handleBackNavigation = () => {
       if (isDirty) {
           setShowUnsavedModal(true);
@@ -285,12 +307,10 @@ function CreateEventContent() {
           }
       }
 
-      // CORRECCIÓN: Leemos el status directamente desde el estado actualizado del panel
       const finalStatus = eventData.settings?.isPrivate ? 'draft' : 'active'
 
-      // 2. Guardar Evento
       const eventPayload = {
-        organizer_id: user.id,
+        organizer_id: user.id, // Solo aplica al crear nuevos
         title: eventData.name,
         region: eventData.region,
         commune: eventData.commune,
@@ -313,14 +333,22 @@ function CreateEventContent() {
         instagram_url: eventData.socialLinks.instagram,
         category: eventData.category,
         theme_color: eventData.themeColor,
-        is_active: finalStatus === 'active', // CORRECCIÓN: is_active depende del status
+        is_active: finalStatus === 'active',
         status: finalStatus 
       }
 
       let currentEventId = eventId
 
       if (eventId) {
-        const { error } = await supabase.from('events').update(eventPayload).eq('id', eventId)
+        // También quitamos organizer_id de aquí para que el staff pueda guardar cambios
+        const { error } = await supabase
+          .from('events')
+          .update({
+             ...eventPayload,
+             organizer_id: undefined // No permitimos que se cambie el dueño al editar
+          })
+          .eq('id', eventId)
+        
         if (error) throw error
       } else {
         const { data: event, error: eventError } = await supabase.from('events').insert([eventPayload]).select().single()
@@ -373,18 +401,15 @@ function CreateEventContent() {
         if (ticketError) throw ticketError
       }
 
-      // RESETEAR ESTADO DIRTY
       initialDataRef.current = JSON.stringify(eventData);
       setIsDirty(false);
       isDirtyRef.current = false;
       setShowUnsavedModal(false);
 
       if (!eventId) {
-          // Si es un evento nuevo, mostramos el modal para elegir/confirmar estado
           setNewlyCreatedId(currentEventId);
           setShowStatusModal(true);
       } else {
-          // ACCIÓN EXITOSA (Solo para edición)
           setActiveSection('settings')
           setShowSuccessToast(true)
           setTimeout(() => setShowSuccessToast(false), 3000)
@@ -410,14 +435,36 @@ function CreateEventContent() {
     }
   }
 
-  // CORRECCIÓN: Leemos si es público usando la variable isPrivate
   const isCurrentlyPublic = !eventData.settings?.isPrivate
+
+  // PANTALLA DURA DE BLOQUEO
+  if (unauthorized) return (
+    <div className="flex h-screen w-full items-center justify-center bg-[#09090b] text-white z-50">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <ShieldAlert size={64} className="text-red-500 mb-2" />
+        <h2 className="text-2xl font-black uppercase tracking-tighter">Acceso Denegado</h2>
+        <p className="text-sm text-zinc-400 max-w-sm">No tienes permisos para editar este evento o la URL es incorrecta.</p>
+        <button onClick={() => router.push('/events')} className="mt-4 px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors font-bold text-xs uppercase tracking-widest">
+          Volver a mis eventos
+        </button>
+      </div>
+    </div>
+  )
+
+  if (!authChecked) return (
+    <div className="flex h-screen w-full items-center justify-center bg-[#09090b] text-white">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="animate-spin text-purple-600" size={40} />
+        <p className="text-sm text-zinc-400 animate-pulse">Verificando acceso...</p>
+      </div>
+    </div>
+  )
 
   return (
     <div className="flex h-screen w-full bg-[#09090b] text-white overflow-hidden font-sans relative">
       <aside className="w-[450px] border-r border-white/5 flex flex-col z-20 bg-[#09090b] shadow-2xl">
         
-        {/* BOTON VOLVER A MIS EVENTOS (Interceptado) */}
+        {/* BOTON VOLVER A MIS EVENTOS */}
         <div className="h-12 border-b border-white/5 flex items-center px-6 shrink-0 bg-white/[0.02]">
             <button onClick={handleBackNavigation} className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors text-xs font-bold tracking-widest uppercase">
                 <ArrowLeft size={14} /> Volver a Mis Eventos
@@ -465,7 +512,6 @@ function CreateEventContent() {
         <div className="z-10 animate-in zoom-in-95 duration-500"><LivePreview /></div>
       </main>
 
-      {/* --- NOTIFICACIÓN TOAST SUTIL --- */}
       {showSuccessToast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top-2 fade-in duration-300">
             <div className="bg-[#09090b]/80 backdrop-blur-xl border border-[#00D15B]/30 text-white px-6 py-3 rounded-full shadow-[0_10px_40px_-10px_rgba(0,209,91,0.3)] flex items-center gap-3">
@@ -477,7 +523,6 @@ function CreateEventContent() {
         </div>
       )}
 
-      {/* --- ALERTA CAMBIOS SIN GUARDAR (MODAL) --- */}
       {showUnsavedModal && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/20 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowUnsavedModal(false)} />
@@ -507,34 +552,23 @@ function CreateEventContent() {
         </div>
       )}
 
-      {/* --- MODAL ESTADO DEL EVENTO NUEVO DINÁMICO --- */}
       {showStatusModal && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
             <div className="relative w-full max-w-sm bg-[#09090b] border border-white/10 rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 fade-in duration-300 text-center">
-                
-                {/* ICONO DINÁMICO */}
                 <div className={`p-4 rounded-full mb-6 inline-block shadow-[0_0_30px_rgba(0,0,0,0.2)] border ${isCurrentlyPublic ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-purple-500/10 text-purple-500 border-purple-500/20'}`}>
                     {isCurrentlyPublic ? <Eye size={32} /> : <FileText size={32} />}
                 </div>
-                
                 <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">¡Evento Creado!</h3>
-                
-                {/* MENSAJE DINÁMICO */}
                 <p className="text-white/40 text-xs font-medium mb-8 leading-relaxed">
                     {isCurrentlyPublic 
                         ? 'Tu evento ha sido creado y actualmente está configurado como Público. ¿Deseas mantenerlo así o pasarlo a borrador?'
                         : 'Tu evento ha sido creado y actualmente está configurado como Borrador. ¿Deseas publicarlo ahora o dejarlo así?'}
                 </p>
-
-                {/* BOTONES DINÁMICOS */}
                 <div className="flex flex-col gap-3">
-                    
-                    {/* BOTON PRIMARIO (Mantiene el estado actual) */}
                     <button 
                         onClick={async () => {
                             setStatusLoading('public');
-                            // No hace falta actualizar, ya se guardó con este estado
                             setShowStatusModal(false);
                             router.push('/events');
                         }}
@@ -543,8 +577,6 @@ function CreateEventContent() {
                     >
                         {statusLoading === 'public' ? <Loader2 className="animate-spin" size={14}/> : (isCurrentlyPublic ? 'Mantener Público' : 'Dejar en Borrador')}
                     </button>
-                    
-                    {/* BOTON SECUNDARIO (Cambia el estado) */}
                     <button 
                         onClick={async () => {
                             setStatusLoading('draft');
@@ -560,12 +592,10 @@ function CreateEventContent() {
                     >
                         {statusLoading === 'draft' ? <Loader2 className="animate-spin" size={14}/> : (isCurrentlyPublic ? 'Cambiar a Borrador' : 'Hacer Público')}
                     </button>
-
                 </div>
             </div>
         </div>
       )}
-
     </div>
   )
 }
@@ -579,7 +609,6 @@ function NavButton({ active, onClick, icon, label }: NavButtonProps) {
     )
 }
 
-// --- EXPORTACIÓN PRINCIPAL ENVUELTA EN SUSPENSE ---
 export default function CreateEventPage() {
   return (
     <Suspense fallback={

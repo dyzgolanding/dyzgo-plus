@@ -3,21 +3,21 @@
 import React, { useEffect, useState, use } from 'react'
 import { Ticket, Users, Clock, TrendingUp, Loader2, BarChart3, PieChart } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
-// 1. Definimos interfaces para eliminar los 'any' que rompen el build
 interface DashboardTicket {
   id: string
   name: string
   price: number
-  quantity: number      // total_stock
-  quantity_sold: number // sold_tickets
+  quantity: number      
+  quantity_sold: number 
   color: string
 }
 
 interface DashboardData {
   status: string
   tickets: DashboardTicket[]
-  [key: string]: unknown // Permite otras propiedades que vengan de la DB sin romper el tipo
+  [key: string]: unknown 
 }
 
 interface StatCardProps {
@@ -37,51 +37,58 @@ interface TicketProgressProps {
   color: string
 }
 
-export default function EventDashboardPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params)
-  const eventId = resolvedParams.id
 
-  // Aplicamos la interfaz al estado
+
+
+export default function EventDashboardPage({ params }: { params: Promise<{ id: string }> }) {
+  // 1. TODOS los hooks estándar van primero
+  const router = useRouter()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [checkInCount, setCheckInCount] = useState(0)
 
+  // 2. React.use() va DESPUÉS de los useState
+  const resolvedParams = use(params)
+  const eventId = resolvedParams.id
+
   useEffect(() => {
     async function fetchStats() {
-      // 1. Traemos evento y tipos de tickets
-      const { data: eventRaw } = await supabase
+      // Intentamos traer los datos. Si el usuario no tiene permisos (RLS), esto fallará.
+      const { data: eventRaw, error } = await supabase
         .from('events')
         .select('*, ticket_tiers(*)')
         .eq('id', eventId)
         .single()
       
-      // 2. Traemos tickets VENDIDOS para contar los usados (validadaos)
+      // Si la BD rechazó la petición por RLS o no existe, detenemos la carga
+      if (error || !eventRaw) {
+        setLoading(false)
+        return // El Layout padre (layout.tsx) ya mostrará la pantalla de "Acceso Denegado"
+      }
+
       const { data: soldTickets } = await supabase
         .from('tickets')
         .select('used')
         .eq('event_id', eventId)
 
-      if (eventRaw) {
-        // Cálculo de acreditados
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const totalUsed = soldTickets?.filter((t: any) => t.used).length || 0
-        setCheckInCount(totalUsed)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const totalUsed = soldTickets?.filter((t: any) => t.used).length || 0
+      setCheckInCount(totalUsed)
 
-        const adaptedData: DashboardData = {
-            ...eventRaw,
-            status: eventRaw.status || 'draft',
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            tickets: eventRaw.ticket_tiers ? eventRaw.ticket_tiers.map((t: any) => ({
-                id: t.id,
-                name: t.name,
-                price: t.price,
-                quantity: t.total_stock,      
-                quantity_sold: t.sold_tickets, 
-                color: 'purple' 
-            })) : []
-        }
-        setData(adaptedData)
+      const adaptedData: DashboardData = {
+          ...eventRaw,
+          status: eventRaw.status || 'draft',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          tickets: eventRaw.ticket_tiers ? eventRaw.ticket_tiers.map((t: any) => ({
+              id: t.id,
+              name: t.name,
+              price: t.price,
+              quantity: t.total_stock,      
+              quantity_sold: t.sold_tickets, 
+              color: 'purple' 
+          })) : []
       }
+      setData(adaptedData)
       setLoading(false)
     }
     fetchStats()
@@ -93,14 +100,15 @@ export default function EventDashboardPage({ params }: { params: Promise<{ id: s
     </div>
   )
 
+  // Si terminó de cargar y no hay data, devolvemos null (el layout padre mostrará el error)
+  if (!data) return null;
+
   const totalSold = data?.tickets?.reduce((acc, t) => acc + (t.quantity_sold || 0), 0) || 0
   const totalCapacity = data?.tickets?.reduce((acc, t) => acc + (t.quantity || 0), 0) || 0
   const totalRevenue = data?.tickets?.reduce((acc, t) => acc + (t.price * (t.quantity_sold || 0)), 0) || 0
 
   return (
-    // CONTENEDOR LIMPIO (Sin fondo, ya está en el Layout)
     <div className="relative z-10 max-w-[1600px] mx-auto space-y-8 animate-in fade-in pt-4">
-      
       {/* STATS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
@@ -190,9 +198,6 @@ export default function EventDashboardPage({ params }: { params: Promise<{ id: s
   )
 }
 
-// --- SUB-COMPONENTES ESTILIZADOS ---
-
-// Ahora usan la interfaz en lugar de 'any'
 function StatCard({ label, value, subtext, icon, color, bg, border }: StatCardProps) {
   return (
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[2rem] hover:border-white/20 transition-all hover:scale-[1.02] group shadow-lg">

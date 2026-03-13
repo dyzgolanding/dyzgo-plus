@@ -6,7 +6,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import { ArrowLeft, Settings, Users, BarChart3, Share2, Edit3, Loader2, Gift, IdCard, ShieldX } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
-// 1. Definimos la interfaz para el evento para evitar 'any'
 interface EventData {
   title: string
   club_name: string
@@ -15,7 +14,6 @@ interface EventData {
   organizer_id: string
 }
 
-// 2. Definimos la interfaz para las props del Tab
 interface EventTabProps {
   href: string
   active: boolean
@@ -24,16 +22,16 @@ interface EventTabProps {
 }
 
 export default function EventLayout({ children, params }: { children: React.ReactNode, params: Promise<{ id: string }> }) {
+  // 1. TODOS los hooks estándar van primero
   const pathname = usePathname()
   const router = useRouter()
-
-  const resolvedParams = use(params)
-  const eventId = resolvedParams.id
-
-  // 3. Aplicamos el tipado al estado
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
   const [unauthorized, setUnauthorized] = useState(false)
+
+  // 2. React.use() va DESPUÉS de los useState
+  const resolvedParams = use(params)
+  const eventId = resolvedParams.id
 
   useEffect(() => {
     async function getEventTitle() {
@@ -43,13 +41,16 @@ export default function EventLayout({ children, params }: { children: React.Reac
         return
       }
 
-      const { data } = await supabase
+      // Hacemos la consulta normal. Gracias al RLS que pusimos en Supabase, 
+      // si el usuario no tiene permisos, esto devolverá un error y 'data' será null.
+      const { data, error } = await supabase
         .from('events')
         .select('title, club_name, date, status, organizer_id')
         .eq('id', eventId)
         .single()
 
-      if (!data || data.organizer_id !== user.id) {
+      // Si no hay data, o hubo error de RLS, le bloqueamos la pantalla
+      if (error || !data) {
         setUnauthorized(true)
         setLoading(false)
         return
@@ -62,18 +63,21 @@ export default function EventLayout({ children, params }: { children: React.Reac
   }, [eventId, router])
 
   if (loading) return (
-    <div className="h-screen w-full flex items-center justify-center bg-black">
-      <Loader2 className="animate-spin text-purple-500" />
+    <div className="h-screen w-full flex items-center justify-center bg-[#030005]">
+      <Loader2 className="animate-spin text-[#8A2BE2]" size={40} />
     </div>
   )
 
+  // PANTALLA DE BLOQUEO CUANDO INTENTAN ENTRAR CON UN LINK AJENO
   if (unauthorized) return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-black gap-4">
-      <ShieldX size={48} className="text-red-500" />
-      <p className="text-white font-bold text-lg">Acceso denegado</p>
-      <p className="text-zinc-400 text-sm">No tienes permiso para ver este evento.</p>
-      <Link href="/events" className="mt-2 px-4 py-2 bg-zinc-900 border border-zinc-700 text-zinc-300 rounded-lg text-sm hover:text-white transition-colors">
-        Volver a mis eventos
+    <div className="h-screen w-full flex flex-col items-center justify-center bg-[#030005] gap-4 relative z-50">
+      <ShieldX size={64} className="text-red-500 mb-2" />
+      <h2 className="text-white font-black text-2xl tracking-tighter uppercase">Acceso Denegado</h2>
+      <p className="text-zinc-400 text-sm max-w-sm text-center">
+        No tienes permisos de administrador, organizador o colaborador para visualizar o editar este evento.
+      </p>
+      <Link href="/events" className="mt-6 px-6 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
+        Volver a mi panel
       </Link>
     </div>
   )
@@ -112,10 +116,7 @@ export default function EventLayout({ children, params }: { children: React.Reac
 
       <div className="flex gap-1 bg-zinc-900/50 p-1 rounded-xl w-fit border border-zinc-800 overflow-x-auto">
          <EventTab href={`/events/${eventId}`} active={pathname === `/events/${eventId}`} label="Dashboard" icon={<BarChart3 size={14} />} />
-         
-         {/* Asegúrate que tu carpeta se llame 'attendees' para que este link funcione */}
          <EventTab href={`/events/${eventId}/attendees`} active={pathname?.includes('/attendees') ?? false} label="Asistentes" icon={<Users size={14} />} />
-         
          <EventTab href={`/events/${eventId}/rrpp`} active={pathname?.includes('/rrpp') ?? false} label="RRPP" icon={<Gift size={14} />} />
          <EventTab href={`/events/${eventId}/staff`} active={pathname?.includes('/staff') ?? false} label="Staff" icon={<IdCard size={14} />} />
          <EventTab href={`/events/${eventId}/settings`} active={pathname?.includes('/settings') ?? false} label="Ajustes" icon={<Settings size={14} />} />
@@ -128,7 +129,6 @@ export default function EventLayout({ children, params }: { children: React.Reac
   )
 }
 
-// 4. Aplicamos la interfaz a las props
 function EventTab({ href, active, label, icon }: EventTabProps) {
     return (
         <Link href={href} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${active ? 'bg-white text-black' : 'text-zinc-500 hover:text-zinc-300'}`}>
