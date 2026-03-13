@@ -22,14 +22,12 @@ interface EventTabProps {
 }
 
 export default function EventLayout({ children, params }: { children: React.ReactNode, params: Promise<{ id: string }> }) {
-  // 1. TODOS los hooks estándar van primero
   const pathname = usePathname()
   const router = useRouter()
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
   const [unauthorized, setUnauthorized] = useState(false)
 
-  // 2. React.use() va DESPUÉS de los useState
   const resolvedParams = use(params)
   const eventId = resolvedParams.id
 
@@ -41,15 +39,12 @@ export default function EventLayout({ children, params }: { children: React.Reac
         return
       }
 
-      // Hacemos la consulta normal. Gracias al RLS que pusimos en Supabase, 
-      // si el usuario no tiene permisos, esto devolverá un error y 'data' será null.
       const { data, error } = await supabase
         .from('events')
         .select('title, club_name, date, status, organizer_id')
         .eq('id', eventId)
         .single()
 
-      // Si no hay data, o hubo error de RLS, le bloqueamos la pantalla
       if (error || !data) {
         setUnauthorized(true)
         setLoading(false)
@@ -62,28 +57,10 @@ export default function EventLayout({ children, params }: { children: React.Reac
     getEventTitle()
   }, [eventId, router])
 
-  if (loading) return (
-    <div className="h-screen w-full flex items-center justify-center bg-[#030005]">
-      <Loader2 className="animate-spin text-[#8A2BE2]" size={40} />
-    </div>
-  )
-
-  // PANTALLA DE BLOQUEO CUANDO INTENTAN ENTRAR CON UN LINK AJENO
-  if (unauthorized) return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-[#030005] gap-4 relative z-50">
-      <ShieldX size={64} className="text-red-500 mb-2" />
-      <h2 className="text-white font-black text-2xl tracking-tighter uppercase">Acceso Denegado</h2>
-      <p className="text-zinc-400 text-sm max-w-sm text-center">
-        No tienes permisos de administrador, organizador o colaborador para visualizar o editar este evento.
-      </p>
-      <Link href="/events" className="mt-6 px-6 py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl text-xs uppercase tracking-widest hover:bg-white/10 transition-all">
-        Volver a mi panel
-      </Link>
-    </div>
-  )
-
   return (
     <div className="flex flex-col h-full space-y-6">
+      
+      {/* --- HEADER FLUIDO --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-6">
         <div className="flex items-center gap-4">
             <Link href="/events" className="p-2 hover:bg-white/10 rounded-xl transition-colors text-zinc-400 hover:text-white">
@@ -91,30 +68,35 @@ export default function EventLayout({ children, params }: { children: React.Reac
             </Link>
             <div>
                 <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold text-white tracking-tight">{event?.title}</h1>
-                    <span className="px-2 py-0.5 rounded bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 uppercase">
-                        {event?.status === 'active' ? 'En Venta' : event?.status}
-                    </span>
+                    <h1 className="text-2xl font-bold text-white tracking-tight">
+                        {loading ? <span className="animate-pulse text-zinc-600">Cargando...</span> : unauthorized ? 'Evento Protegido' : event?.title}
+                    </h1>
+                    {!loading && !unauthorized && (
+                        <span className="px-2 py-0.5 rounded bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 uppercase">
+                            {event?.status === 'active' ? 'En Venta' : event?.status}
+                        </span>
+                    )}
                 </div>
                 <p className="text-zinc-400 text-xs mt-0.5 flex items-center gap-2">
-                    ID: {eventId.slice(0,8)}... • {event?.club_name} • {event?.date}
+                    ID: {eventId.slice(0,8)}... {!loading && !unauthorized && `• ${event?.club_name} • ${event?.date}`}
                 </p>
             </div>
         </div>
 
         <div className="flex gap-2">
-            <button className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 font-medium text-sm rounded-lg hover:text-white transition-all flex items-center gap-2">
+            <button disabled={loading || unauthorized} className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 font-medium text-sm rounded-lg hover:text-white transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Share2 size={16} /> Link Evento
             </button>
-            <Link href={`/events/create?id=${eventId}`}>
-                <button className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-purple-900/20">
+            <Link href={loading || unauthorized ? '#' : `/events/create?id=${eventId}`}>
+                <button disabled={loading || unauthorized} className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-purple-900/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none">
                     <Edit3 size={16} /> Editar
                 </button>
             </Link>
         </div>
       </div>
 
-      <div className="flex gap-1 bg-zinc-900/50 p-1 rounded-xl w-fit border border-zinc-800 overflow-x-auto">
+      {/* --- TABS (Se opacan si no hay acceso) --- */}
+      <div className={`flex gap-1 bg-zinc-900/50 p-1 rounded-xl w-fit border border-zinc-800 overflow-x-auto transition-opacity ${loading || unauthorized ? 'opacity-50 pointer-events-none' : ''}`}>
          <EventTab href={`/events/${eventId}`} active={pathname === `/events/${eventId}`} label="Dashboard" icon={<BarChart3 size={14} />} />
          <EventTab href={`/events/${eventId}/attendees`} active={pathname?.includes('/attendees') ?? false} label="Asistentes" icon={<Users size={14} />} />
          <EventTab href={`/events/${eventId}/rrpp`} active={pathname?.includes('/rrpp') ?? false} label="RRPP" icon={<Gift size={14} />} />
@@ -122,9 +104,25 @@ export default function EventLayout({ children, params }: { children: React.Reac
          <EventTab href={`/events/${eventId}/settings`} active={pathname?.includes('/settings') ?? false} label="Ajustes" icon={<Settings size={14} />} />
       </div>
 
-      <div className="animate-in fade-in zoom-in-95 duration-300">
-        {children}
+      {/* --- ÁREA DE CONTENIDO (Aquí aparece el bloqueo grande) --- */}
+      <div className="animate-in fade-in zoom-in-95 duration-300 flex-1 flex flex-col">
+         {loading ? (
+            <div className="flex-1 flex items-center justify-center py-20">
+                <Loader2 className="animate-spin text-[#8A2BE2]" size={40} />
+            </div>
+         ) : unauthorized ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-40 gap-6 text-center">
+                <ShieldX size={120} className="text-red-500 mb-4" />
+                <h2 className="text-white font-black text-6xl tracking-tighter uppercase">Acceso Denegado</h2>
+                <p className="text-zinc-400 text-lg max-w-xl leading-relaxed">
+                    No tienes permisos de administrador, organizador o colaborador para visualizar o editar este evento.
+                </p>
+            </div>
+         ) : (
+            children
+         )}
       </div>
+
     </div>
   )
 }

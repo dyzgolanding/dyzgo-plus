@@ -10,7 +10,6 @@ const PanelFallback = () => (
   </div>
 )
 
-// Lazy loading
 const LivePreview     = dynamic(() => import('@/components/hud/LivePreview'),     { ssr: false, loading: PanelFallback })
 const GeneralPanel    = dynamic(() => import('@/components/hud/GeneralPanel'),    { ssr: false, loading: PanelFallback })
 const TicketPanel     = dynamic(() => import('@/components/hud/TicketPanel'),     { ssr: false, loading: PanelFallback })
@@ -22,7 +21,6 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
-// --- INTERFACES PARA EVITAR 'ANY' ---
 interface NavButtonProps {
     active: boolean
     onClick: () => void
@@ -44,7 +42,6 @@ interface TicketTierDB {
     sales_end_at: string
 }
 
-// --- GENERADOR DE ID SEGURO ---
 function safeUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -56,25 +53,19 @@ function safeUUID() {
   });
 }
 
-// --- FUNCIÓN DE GEOLOCALIZACIÓN ---
 async function getCoordinates(address: string) {
   try {
     const queryAddress = address.toLowerCase().includes('chile') ? address : `${address}, Chile`;
     const query = encodeURIComponent(queryAddress);
     
     const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`, {
-        headers: {
-            'User-Agent': 'DyzGO-AdminPanel' 
-        }
+        headers: { 'User-Agent': 'DyzGO-AdminPanel' }
     });
     
     const data = await response.json();
     
     if (data && data.length > 0) {
-        return {
-            lat: parseFloat(data[0].lat),
-            lon: parseFloat(data[0].lon)
-        };
+        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
     }
     return null;
   } catch (error) {
@@ -83,21 +74,17 @@ async function getCoordinates(address: string) {
   }
 }
 
-// --- COMPONENTE INTERNO CON LA LÓGICA ---
 function CreateEventContent() {
   const { activeSection, setActiveSection, eventData } = useEventStore()
   const [loading, setLoading] = useState(false)
   const [showSuccessToast, setShowSuccessToast] = useState(false)
   
-  // Estados de seguridad
   const [authChecked, setAuthChecked] = useState(false)
   const [unauthorized, setUnauthorized] = useState(false) 
   
-  // Estados para control de cambios
   const [showUnsavedModal, setShowUnsavedModal] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
 
-  // Estados para modal de publicación
   const [showStatusModal, setShowStatusModal] = useState(false)
   const [newlyCreatedId, setNewlyCreatedId] = useState<string | null>(null)
   const [statusLoading, setStatusLoading] = useState<'public' | 'draft' | null>(null)
@@ -109,7 +96,6 @@ function CreateEventContent() {
   const searchParams = useSearchParams()
   const eventId = searchParams.get('id')
 
-  // --- LÓGICA DE CARGA Y VERIFICACIÓN DE SEGURIDAD ---
   useEffect(() => {
     if (!eventId) {
       if (!initialDataRef.current) {
@@ -130,23 +116,9 @@ function CreateEventContent() {
           .eq('id', eventId)
           .single()
 
-        // === AUDITORÍA FORENSE INYECTADA ===
-        console.log("=========================================");
-        console.log("=== AUDITORÍA DE SEGURIDAD DYZGO+ ===");
-        console.log("1. Mi ID de usuario actual:", user.id);
-        console.log("2. ID del organizador del evento en DB:", event?.organizer_id);
-        console.log("3. ¿El evento trajo datos?:", !!event);
-        console.log("4. ¿Hubo error de seguridad RLS?:", error);
-        if (event) {
-          console.log("5. ¿Soy el dueño directo?:", user.id === event.organizer_id);
-          console.log("6. Título del evento interceptado:", event.title);
-        }
-        console.log("=========================================");
-        // ===================================
-
-        // Si hay error o no hay evento, BLOQUEAMOS COMPLETAMENTE LA PANTALLA
         if (error || !event) {
           setUnauthorized(true)
+          setAuthChecked(true) 
           return
         }
 
@@ -208,10 +180,8 @@ function CreateEventContent() {
       }
       loadEventData()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
-  // --- DETECTAR CAMBIOS ---
   useEffect(() => {
       if (initialDataRef.current) {
           const currentString = JSON.stringify(eventData);
@@ -256,7 +226,6 @@ function CreateEventContent() {
       }
   };
 
-  // --- LÓGICA DE PUBLICACIÓN ---
   const handlePublish = async () => {
     if (!eventData.name?.trim()) return toast.error("Error: El nombre del evento es obligatorio.")
     if (!eventData.date || !eventData.startTime) return toast.error("Error: Fecha y hora son obligatorias.")
@@ -310,7 +279,7 @@ function CreateEventContent() {
       const finalStatus = eventData.settings?.isPrivate ? 'draft' : 'active'
 
       const eventPayload = {
-        organizer_id: user.id, // Solo aplica al crear nuevos
+        organizer_id: user.id, 
         title: eventData.name,
         region: eventData.region,
         commune: eventData.commune,
@@ -340,12 +309,11 @@ function CreateEventContent() {
       let currentEventId = eventId
 
       if (eventId) {
-        // También quitamos organizer_id de aquí para que el staff pueda guardar cambios
         const { error } = await supabase
           .from('events')
           .update({
              ...eventPayload,
-             organizer_id: undefined // No permitimos que se cambie el dueño al editar
+             organizer_id: undefined 
           })
           .eq('id', eventId)
         
@@ -437,29 +405,6 @@ function CreateEventContent() {
 
   const isCurrentlyPublic = !eventData.settings?.isPrivate
 
-  // PANTALLA DURA DE BLOQUEO
-  if (unauthorized) return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#09090b] text-white z-50">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <ShieldAlert size={64} className="text-red-500 mb-2" />
-        <h2 className="text-2xl font-black uppercase tracking-tighter">Acceso Denegado</h2>
-        <p className="text-sm text-zinc-400 max-w-sm">No tienes permisos para editar este evento o la URL es incorrecta.</p>
-        <button onClick={() => router.push('/events')} className="mt-4 px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors font-bold text-xs uppercase tracking-widest">
-          Volver a mis eventos
-        </button>
-      </div>
-    </div>
-  )
-
-  if (!authChecked) return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#09090b] text-white">
-      <div className="flex flex-col items-center gap-4">
-        <Loader2 className="animate-spin text-purple-600" size={40} />
-        <p className="text-sm text-zinc-400 animate-pulse">Verificando acceso...</p>
-      </div>
-    </div>
-  )
-
   return (
     <div className="flex h-screen w-full bg-[#09090b] text-white overflow-hidden font-sans relative">
       <aside className="w-[450px] border-r border-white/5 flex flex-col z-20 bg-[#09090b] shadow-2xl">
@@ -481,7 +426,8 @@ function CreateEventContent() {
         </div>
 
         <div className="flex flex-1 overflow-hidden">
-             <div className="w-20 border-r border-white/5 flex flex-col items-center py-6 gap-6 bg-zinc-950/50">
+             {/* BOTONERA LATERAL */}
+             <div className={`w-20 border-r border-white/5 flex flex-col items-center py-6 gap-6 bg-zinc-950/50 transition-opacity ${(!authChecked || unauthorized) ? 'opacity-50 pointer-events-none' : ''}`}>
                 <NavButton active={activeSection === 'info'} onClick={() => setActiveSection('info')} icon={<LayoutDashboard size={24} />} label="Info" />
                 <NavButton active={activeSection === 'experience'} onClick={() => setActiveSection('experience')} icon={<AlignLeft size={24} />} label="Experiencia" />
                 <NavButton active={activeSection === 'tickets'} onClick={() => setActiveSection('tickets')} icon={<Ticket size={24} />} label="Tickets" />
@@ -489,16 +435,31 @@ function CreateEventContent() {
                 <div className="h-px w-8 bg-white/10 my-2" />
                 <NavButton active={activeSection === 'settings'} onClick={() => setActiveSection('settings')} icon={<Settings size={24} />} label="Ajustes" />
              </div>
-             <div className="flex-1 overflow-y-auto p-8 scrollbar-hide bg-[#09090b]">
-                {renderActivePanel()}
+
+             {/* ZONA DE PANELES */}
+             <div className="flex-1 overflow-y-auto p-8 scrollbar-hide bg-[#09090b] relative">
+                {!authChecked ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
+                        <Loader2 className="animate-spin text-purple-600 mb-4" size={32} />
+                        <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest animate-pulse">Cargando...</p>
+                    </div>
+                ) : unauthorized ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
+                        <ShieldAlert size={48} className="text-red-500 mb-4" />
+                        <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-2">Panel Bloqueado</h3>
+                        <p className="text-xs text-white">No tienes permisos para editar este evento.</p>
+                    </div>
+                ) : (
+                    renderActivePanel()
+                )}
              </div>
         </div>
 
         <div className="p-4 border-t border-white/5 bg-zinc-950/30">
             <button 
               onClick={handlePublish}
-              disabled={loading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold hover:brightness-110 transition-all shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || !authChecked || unauthorized}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold hover:brightness-110 transition-all shadow-lg shadow-green-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             >
                 {loading ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={16} />}
                 {loading ? "Guardando..." : (eventId ? "Guardar Cambios" : "Publicar Evento")}
@@ -506,12 +467,31 @@ function CreateEventContent() {
         </div>
       </aside>
 
+      {/* ZONA DE PREVISUALIZACIÓN CENTRAL */}
       <main className="flex-1 relative flex items-center justify-center bg-black">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-900/50 via-[#050505] to-black"></div>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:32px_32px]"></div>
-        <div className="z-10 animate-in zoom-in-95 duration-500"><LivePreview /></div>
+        
+        {!authChecked ? (
+            <div className="z-10 flex flex-col items-center gap-4 animate-in fade-in duration-500">
+                <Loader2 className="animate-spin text-white/20" size={64} />
+            </div>
+        ) : unauthorized ? (
+            <div className="z-10 flex flex-col items-center gap-6 text-center animate-in zoom-in-95 duration-500 px-10">
+                <div className="p-6 rounded-full bg-red-500/5 border border-red-500/10 mb-2">
+                    <ShieldAlert size={80} className="text-red-500" />
+                </div>
+                <h2 className="text-4xl font-black uppercase tracking-tighter text-white">Acceso Restringido</h2>
+                <p className="text-zinc-400 max-w-md text-sm">
+                    El sistema de seguridad ha bloqueado el acceso a este evento porque la URL no te pertenece o no tienes los permisos de organización.
+                </p>
+            </div>
+        ) : (
+            <div className="z-10 animate-in zoom-in-95 duration-500"><LivePreview /></div>
+        )}
       </main>
 
+      {/* --- MODALES --- */}
       {showSuccessToast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-top-2 fade-in duration-300">
             <div className="bg-[#09090b]/80 backdrop-blur-xl border border-[#00D15B]/30 text-white px-6 py-3 rounded-full shadow-[0_10px_40px_-10px_rgba(0,209,91,0.3)] flex items-center gap-3">
