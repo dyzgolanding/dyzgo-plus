@@ -43,8 +43,12 @@ interface TicketStoreState {
 interface CustomInputProps {
   value?: string
   onClick?: () => void
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   placeholder?: string
   icon?: React.ReactNode
+  isTime?: boolean
 }
 
 // Estado inicial para el formulario
@@ -113,29 +117,21 @@ export default function TicketPanel() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [newTicketForm, setNewTicketForm] = useState({ ...INITIAL_TICKET_STATE, price: '' as string | number, quantity: '' as string | number })
   
-  // Estado para forzar re-render y actualizar los badges de tiempo en tiempo real
   const [currentTime, setCurrentTime] = useState(new Date())
 
   useEffect(() => {
-    // Actualiza la hora local cada 30 segundos para que los badges cambien solos si es necesario
     const interval = setInterval(() => setCurrentTime(new Date()), 30000)
     return () => clearInterval(interval)
   }, [])
 
   const parseDate = (dateStr?: string) => {
       if (!dateStr) return null
-      const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-      const [year, month, day] = datePart.split('-').map(Number)
-      return new Date(year, month - 1, day)
+      return new Date(dateStr)
   }
 
   const parseTime = (dateStr?: string) => {
       if (!dateStr) return null
-      const timePart = dateStr.includes('T') ? dateStr.split('T')[1]?.slice(0, 5) : '';
-      if (!timePart) return null
-      const [hours, minutes] = timePart.split(':').map(Number)
-      const date = new Date(); date.setHours(hours); date.setMinutes(minutes)
-      return date
+      return new Date(dateStr)
   }
 
   const handleNewTicketDate = (type: 'start' | 'end', value: Date | null, mode: 'date' | 'time') => {
@@ -143,8 +139,14 @@ export default function TicketPanel() {
       const currentIso = type === 'start' ? newTicketForm.startDate : newTicketForm.endDate
       const baseDate = currentIso ? new Date(currentIso) : new Date()
       
-      if (mode === 'date') baseDate.setFullYear(value.getFullYear(), value.getMonth(), value.getDate())
-      else baseDate.setHours(value.getHours(), value.getMinutes())
+      if (mode === 'date') {
+          baseDate.setFullYear(value.getFullYear(), value.getMonth(), value.getDate())
+          if (!currentIso) {
+              baseDate.setHours(0, 0, 0, 0)
+          }
+      } else {
+          baseDate.setHours(value.getHours(), value.getMinutes(), 0, 0)
+      }
       
       setNewTicketForm({
           ...newTicketForm,
@@ -156,19 +158,79 @@ export default function TicketPanel() {
       if (!value) return
       const currentIso = type === 'start' ? eventData.tickets.find(t => t.id === ticketId)?.startDate : eventData.tickets.find(t => t.id === ticketId)?.endDate
       const baseDate = currentIso ? new Date(currentIso) : new Date()
-      if (mode === 'date') baseDate.setFullYear(value.getFullYear(), value.getMonth(), value.getDate())
-      else baseDate.setHours(value.getHours(), value.getMinutes())
+      
+      if (mode === 'date') {
+          baseDate.setFullYear(value.getFullYear(), value.getMonth(), value.getDate())
+          if (!currentIso) {
+              baseDate.setHours(0, 0, 0, 0)
+          }
+      } else {
+          baseDate.setHours(value.getHours(), value.getMinutes(), 0, 0)
+      }
+      
       const newIso = baseDate.toISOString()
       updateTicket(ticketId, { [type === 'start' ? 'startDate' : 'endDate']: newIso })
   }
 
+  // --- CAMBIO: readOnly dinámico para bloquear fechas ---
   // eslint-disable-next-line react/display-name
-  const CustomInput = forwardRef<HTMLDivElement, CustomInputProps>(({ value, onClick, placeholder, icon }, ref) => (
-    <div onClick={onClick} ref={ref} className="relative w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 cursor-pointer hover:border-zinc-600 transition-colors flex items-center justify-between gap-3 h-[38px]">
-        <span className={`text-xs ${value ? 'text-zinc-300' : 'text-zinc-600'}`}>{value || 'Seleccionar'}</span>
-        <div className="text-zinc-500">{icon}</div>
-    </div>
-  ))
+  const CustomInput = forwardRef<HTMLInputElement, CustomInputProps>(({ value, onClick, onChange, onBlur, onKeyDown, placeholder, icon, isTime }, ref) => {
+    
+    const [localValue, setLocalValue] = useState(value || '');
+
+    useEffect(() => {
+        setLocalValue(value || '');
+    }, [value]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (isTime) {
+            let val = e.target.value;
+            
+            if (localValue.endsWith(':') && val === localValue.slice(0, -1)) {
+                val = val.slice(0, -1);
+            } else {
+                let digits = val.replace(/\D/g, ''); 
+                if (digits.length > 4) digits = digits.substring(0, 4); 
+                
+                if (digits.length >= 3) {
+                    val = digits.substring(0, 2) + ':' + digits.substring(2);
+                } else if (digits.length === 2) {
+                    val = digits + ':';
+                } else {
+                    val = digits;
+                }
+            }
+            
+            setLocalValue(val);
+            
+            if (val.length === 5 || val.length === 0) {
+                e.target.value = val;
+                if (onChange) onChange(e);
+            }
+        } else {
+            if (onChange) onChange(e);
+        }
+    };
+
+    return (
+      <div className={`relative w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 hover:border-zinc-600 focus-within:border-purple-500 transition-colors flex items-center justify-between gap-3 h-[38px] ${isTime ? 'cursor-text' : 'cursor-pointer'}`}>
+          <input 
+              ref={ref}
+              type="text"
+              value={isTime ? localValue : (value || '')}
+              onClick={onClick}
+              onChange={handleChange}
+              onBlur={onBlur}
+              onKeyDown={onKeyDown}
+              placeholder={isTime ? '00:00' : (placeholder || 'Seleccionar')}
+              maxLength={isTime ? 5 : undefined}
+              readOnly={!isTime} // <--- AQUÍ: Bloquea el teclado si es una fecha
+              className={`bg-transparent border-none outline-none text-xs w-full ${isTime ? (localValue ? 'text-zinc-300' : 'text-zinc-600') : (value ? 'text-zinc-300' : 'text-zinc-600')} ${!isTime ? 'cursor-pointer' : ''}`}
+          />
+          <div className="text-zinc-500 pointer-events-none">{icon}</div>
+      </div>
+    );
+  })
 
   const handleAdd = () => {
     if (!newTicketForm.name || (newTicketForm.type === 'paid' && !newTicketForm.price)) return
@@ -297,12 +359,12 @@ export default function TicketPanel() {
                                 <div className="space-y-2">
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Inicio</label>
                                     <DatePicker selected={parseDate(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'date')} dateFormat="dd/MM/yyyy" customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                    <DatePicker selected={parseTime(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} />} locale="es" />
+                                    <DatePicker selected={parseTime(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Fin</label>
                                     <DatePicker selected={parseDate(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'date')} dateFormat="dd/MM/yyyy" customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                    <DatePicker selected={parseTime(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} />} locale="es" />
+                                    <DatePicker selected={parseTime(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                 </div>
                             </div>
 
@@ -336,7 +398,6 @@ export default function TicketPanel() {
             const isExpanded = expandedTicketId === t.id
             const isCourtesy = t.type === 'courtesy' || t.price === 0; 
             
-            // --- LOGICA DE PROGRAMACION DE TICKETS (Cálculo de estado en tiempo real) ---
             const isScheduled = t.startDate ? currentTime < new Date(t.startDate) : false;
             const isExpired = t.endDate ? currentTime >= new Date(t.endDate) : false;
             
@@ -366,7 +427,6 @@ export default function TicketPanel() {
                             <div>
                                 <h3 className={`font-bold text-sm text-white flex flex-wrap items-center gap-2`}>
                                     {t.name}
-                                    {/* BADGES VISUALES DE ESTADO */}
                                     {isScheduled && !isCourtesy && (
                                         <span className="bg-orange-500/20 text-orange-400 text-[9px] px-1.5 py-0.5 rounded border border-orange-500/30 flex items-center gap-1">
                                             <Timer size={10} /> PROGRAMADO
@@ -471,12 +531,12 @@ export default function TicketPanel() {
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Inicio</label>
                                                     <DatePicker selected={parseDate(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'date')} dateFormat="dd/MM/yyyy" customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                                    <DatePicker selected={parseTime(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} />} locale="es" />
+                                                    <DatePicker selected={parseTime(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Fin</label>
                                                     <DatePicker selected={parseDate(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'date')} dateFormat="dd/MM/yyyy" customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                                    <DatePicker selected={parseTime(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} />} locale="es" />
+                                                    <DatePicker selected={parseTime(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                                 </div>
                                             </div>
 
