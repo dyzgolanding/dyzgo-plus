@@ -458,13 +458,14 @@ export default function GeneralPanel() {
                 <label className="text-xs font-bold text-zinc-400 flex items-center gap-2 uppercase">
                     <Calendar size={14} className="text-white"/> Fecha Inicio
                 </label>
-                <DatePicker 
+                <DatePicker
                     selected={parseDate(eventData.date)}
                     onChange={(date) => handleDateChange(date, 'start')}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
-                    placeholderText="Seleccionar" 
+                    placeholderText="Seleccionar"
                     wrapperClassName="w-full"
+                    popperProps={{ strategy: 'fixed' }}
                     customInput={<CustomInput placeholder="Seleccionar" icon={<Calendar size={16}/>} />}
                 />
             </div>
@@ -473,7 +474,7 @@ export default function GeneralPanel() {
                 <label className="text-xs font-bold text-zinc-400 flex items-center gap-2 uppercase">
                     <Clock size={14} className="text-white"/> Hora Inicio
                 </label>
-                <DatePicker 
+                <DatePicker
                     selected={parseTime(eventData.startTime)}
                     onChange={(date) => handleTimeChange(date, 'start')}
                     showTimeSelect
@@ -482,8 +483,9 @@ export default function GeneralPanel() {
                     timeCaption="Hora"
                     dateFormat="HH:mm"
                     locale="es"
-                    placeholderText="Seleccionar" 
+                    placeholderText="Seleccionar"
                     wrapperClassName="w-full"
+                    popperProps={{ strategy: 'fixed' }}
                     customInput={<CustomInput placeholder="Seleccionar" icon={<Clock size={16}/>} />}
                 />
             </div>
@@ -492,14 +494,15 @@ export default function GeneralPanel() {
                 <label className="text-xs font-bold text-zinc-400 flex items-center gap-2 uppercase">
                     <Calendar size={14} className="text-white"/> Fecha Fin
                 </label>
-                <DatePicker 
+                <DatePicker
                     selected={parseDate(eventData.endDate)}
                     onChange={(date) => handleDateChange(date, 'end')}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
                     minDate={parseDate(eventData.date) || new Date()}
-                    placeholderText="Seleccionar" 
+                    placeholderText="Seleccionar"
                     wrapperClassName="w-full"
+                    popperProps={{ strategy: 'fixed' }}
                     customInput={<CustomInput placeholder="Seleccionar" icon={<Calendar size={16}/>} />}
                 />
             </div>
@@ -508,7 +511,7 @@ export default function GeneralPanel() {
                 <label className="text-xs font-bold text-zinc-400 flex items-center gap-2 uppercase">
                     <Clock size={14} className="text-white"/> Hora Fin
                 </label>
-                <DatePicker 
+                <DatePicker
                     selected={parseTime(eventData.endTime)}
                     onChange={(date) => handleTimeChange(date, 'end')}
                     showTimeSelect
@@ -517,8 +520,9 @@ export default function GeneralPanel() {
                     timeCaption="Hora"
                     dateFormat="HH:mm"
                     locale="es"
-                    placeholderText="Seleccionar" 
+                    placeholderText="Seleccionar"
                     wrapperClassName="w-full"
+                    popperProps={{ strategy: 'fixed' }}
                     customInput={<CustomInput placeholder="Seleccionar" icon={<Clock size={16}/>} />}
                 />
             </div>

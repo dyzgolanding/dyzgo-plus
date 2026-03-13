@@ -12,6 +12,47 @@ import { es } from 'date-fns/locale/es'
 
 registerLocale('es', es)
 
+// Input numérico con estado local para evitar el bug de backspace en type="number"
+function NumericInput({ value, min = 1, placeholder, onChange, className, centerText = false }: {
+    value: number | string
+    min?: number
+    placeholder?: string
+    onChange: (n: number) => void
+    className?: string
+    centerText?: boolean
+}) {
+    const [local, setLocal] = useState(value !== 0 && value !== '' ? String(value) : '')
+
+    useEffect(() => {
+        setLocal(value !== 0 && value !== '' ? String(value) : '')
+    }, [value])
+
+    return (
+        <input
+            type="text"
+            inputMode="numeric"
+            value={local}
+            placeholder={placeholder}
+            onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, '')
+                setLocal(digits)
+                const n = parseInt(digits)
+                if (!isNaN(n) && n >= min) onChange(n)
+            }}
+            onBlur={() => {
+                const n = parseInt(local)
+                if (isNaN(n) || n < min) {
+                    setLocal(String(min))
+                    onChange(min)
+                } else {
+                    setLocal(String(n))
+                }
+            }}
+            className={`${className ?? ''} ${centerText ? 'text-center' : ''}`}
+        />
+    )
+}
+
 // --- INTERFACES LOCALES PARA TIPADO ---
 interface Ticket {
   id: string
@@ -213,8 +254,8 @@ export default function TicketPanel() {
     };
 
     return (
-      <div className={`relative w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 hover:border-zinc-600 focus-within:border-purple-500 transition-colors flex items-center justify-between gap-3 h-[38px] ${isTime ? 'cursor-text' : 'cursor-pointer'}`}>
-          <input 
+      <div onClick={!isTime ? onClick : undefined} className={`relative w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 hover:border-zinc-600 focus-within:border-purple-500 transition-colors flex items-center justify-between gap-3 h-[38px] ${isTime ? 'cursor-text' : 'cursor-pointer'}`}>
+          <input
               ref={ref}
               type="text"
               value={isTime ? localValue : (value || '')}
@@ -224,10 +265,10 @@ export default function TicketPanel() {
               onKeyDown={onKeyDown}
               placeholder={isTime ? '00:00' : (placeholder || 'Seleccionar')}
               maxLength={isTime ? 5 : undefined}
-              readOnly={!isTime} // <--- AQUÍ: Bloquea el teclado si es una fecha
-              className={`bg-transparent border-none outline-none text-xs w-full ${isTime ? (localValue ? 'text-zinc-300' : 'text-zinc-600') : (value ? 'text-zinc-300' : 'text-zinc-600')} ${!isTime ? 'cursor-pointer' : ''}`}
+              readOnly={!isTime}
+              className={`bg-transparent border-none outline-none text-xs w-full ${isTime ? (localValue ? 'text-zinc-300' : 'text-zinc-400') : (value ? 'text-zinc-300' : 'text-zinc-400')} ${!isTime ? 'cursor-pointer' : ''}`}
           />
-          <div className="text-zinc-500 pointer-events-none">{icon}</div>
+          <div className="text-zinc-400 pointer-events-none">{icon}</div>
       </div>
     );
   })
@@ -308,7 +349,7 @@ export default function TicketPanel() {
                 
                 <div className="grid grid-cols-2 gap-3">
                     <div><label className="text-[10px] text-zinc-500 font-bold uppercase mb-1 block">Precio Total</label>{newTicketForm.type === 'paid' ? <input value={newTicketForm.price} onChange={(e) => setNewTicketForm({...newTicketForm, price: e.target.value})} type="number" placeholder="$ 0" className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none" /> : <div className="w-full bg-zinc-800/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-500 italic">Gratis (Cortesía)</div>}</div>
-                    <div><label className="text-[10px] text-zinc-500 font-bold uppercase mb-1 block">Stock (Packs)</label><input value={newTicketForm.quantity} onChange={(e) => setNewTicketForm({...newTicketForm, quantity: e.target.value})} type="number" placeholder="100" className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none" /></div>
+                    <div><label className="text-[10px] text-zinc-500 font-bold uppercase mb-1 block">Stock (Packs)</label><NumericInput value={newTicketForm.quantity} placeholder="100" onChange={(n) => setNewTicketForm({...newTicketForm, quantity: n})} className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none" /></div>
                 </div>
 
                 {newTicketForm.type === 'paid' && (
@@ -322,17 +363,13 @@ export default function TicketPanel() {
                             </p>
                         </div>
                         <div className="w-20">
-                            <input 
-                                type="number" min="1"
-                                value={newTicketForm.ticketsIncluded} 
-                                onChange={(e) => setNewTicketForm({...newTicketForm, ticketsIncluded: e.target.value})} 
-                                onBlur={(e) => {
-                                    if (Number(e.target.value) < 1) {
-                                        alert("No se pueden mandar 0 entradas.");
-                                        setNewTicketForm({...newTicketForm, ticketsIncluded: 1});
-                                    }
-                                }}
-                                className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 text-center font-bold" 
+                            <NumericInput
+                                value={newTicketForm.ticketsIncluded}
+                                min={1}
+                                placeholder="1"
+                                onChange={(n) => setNewTicketForm({...newTicketForm, ticketsIncluded: n})}
+                                className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 font-bold"
+                                centerText
                             />
                         </div>
                     </div>
@@ -358,13 +395,13 @@ export default function TicketPanel() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-2">
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Inicio</label>
-                                    <DatePicker selected={parseDate(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'date')} dateFormat="dd/MM/yyyy" customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                    <DatePicker selected={parseTime(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
+                                    <DatePicker selected={parseDate(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
+                                    <DatePicker selected={parseTime(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Fin</label>
-                                    <DatePicker selected={parseDate(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'date')} dateFormat="dd/MM/yyyy" customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                    <DatePicker selected={parseTime(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
+                                    <DatePicker selected={parseDate(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
+                                    <DatePicker selected={parseTime(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                 </div>
                             </div>
 
@@ -400,6 +437,7 @@ export default function TicketPanel() {
             
             const isScheduled = t.startDate ? currentTime < new Date(t.startDate) : false;
             const isExpired = t.endDate ? currentTime >= new Date(t.endDate) : false;
+            const isRealSoldOut = typeof t.sold === 'number' && t.quantity > 0 && t.sold >= t.quantity;
             
             return (
                 <div 
@@ -409,7 +447,7 @@ export default function TicketPanel() {
                     onDragEnter={(e) => handleDragEnter(e, index)}
                     onDragEnd={handleDragEnd}
                     onDragOver={(e) => e.preventDefault()}
-                    className={`bg-zinc-900 border transition-all duration-300 rounded-xl overflow-hidden ${isExpanded ? 'border-purple-500/50 shadow-lg shadow-purple-900/10' : 'border-zinc-800'} ${draggedIndex === index ? 'opacity-50' : 'opacity-100'}`}
+                    className={`bg-zinc-900 border transition-all duration-300 rounded-xl overflow-hidden ${isExpanded ? 'border-purple-500/50 shadow-lg shadow-purple-900/10' : 'border-zinc-800'} ${draggedIndex === index ? 'opacity-50' : 'opacity-100'} ${!isCourtesy && !t.isActive ? 'opacity-40 grayscale' : ''}`}
                 >
                     <div className="p-4 flex justify-between items-center cursor-pointer" onClick={() => { 
                         if (expandedTicketId === t.id) {
@@ -423,7 +461,7 @@ export default function TicketPanel() {
                             <div className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-white transition-colors" title="Arrastrar para ordenar" onClick={(e) => e.stopPropagation()}>
                                 <GripVertical size={16} />
                             </div>
-                            <div className={`w-2 h-10 rounded-full ${isCourtesy ? 'bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.5)]' : (t.isGhostSoldOut || isExpired ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : (isScheduled ? 'bg-orange-500' : (t.isActive ? 'bg-green-500' : 'bg-zinc-700')))}`}></div>
+                            <div className={`w-2 h-10 rounded-full ${isCourtesy ? 'bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.5)]' : isRealSoldOut ? 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.6)]' : t.isGhostSoldOut ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : isExpired ? 'bg-zinc-600' : isScheduled ? 'bg-orange-500' : t.isActive ? 'bg-green-500' : 'bg-zinc-700'}`}></div>
                             <div>
                                 <h3 className={`font-bold text-sm text-white flex flex-wrap items-center gap-2`}>
                                     {t.name}
@@ -442,12 +480,27 @@ export default function TicketPanel() {
                                             Genera {t.ticketsIncluded} QRs
                                         </span>
                                     )}
+                                    {isRealSoldOut && (
+                                        <span className="bg-red-500/20 text-red-400 text-[9px] px-1.5 py-0.5 rounded border border-red-500/30 uppercase font-black tracking-wider flex items-center gap-1">
+                                            <TicketIcon size={10} /> AGOTADO
+                                        </span>
+                                    )}
+                                    {t.isNominative && (
+                                        <span className="bg-blue-500/20 text-blue-300 text-[9px] px-1.5 py-0.5 rounded border border-blue-500/30 uppercase font-black tracking-wider flex items-center gap-1">
+                                            <UserCheck size={10} /> Nominativo
+                                        </span>
+                                    )}
                                 </h3>
                                 <div className="flex items-center gap-2 text-xs mt-1">
                                     {isCourtesy ? <span className="text-pink-400 font-bold uppercase text-[10px] border border-pink-500/20 bg-pink-500/10 px-1.5 rounded flex items-center gap-1"><Gift size={10} /> Cortesía</span> : <span className="text-purple-400 font-mono font-bold">${t.price.toLocaleString()}</span>}
                                     <span className="text-zinc-600">•</span>
-                                    {t.isGhostSoldOut || isExpired ? (
-                                        <span className="text-red-500 font-bold uppercase">SOLD OUT</span>
+                                    {isRealSoldOut ? (
+                                        <span className="text-red-500 font-bold uppercase text-[10px]">SOLD OUT</span>
+                                    ) : t.isGhostSoldOut ? (
+                                        <span className="inline-flex flex-row items-center gap-1">
+                                            <Ghost size={12} className="text-red-500"/>
+                                            <span className="text-red-500 text-[9px] font-black uppercase">fake</span>
+                                        </span>
                                     ) : (
                                         <span className="text-zinc-400">{t.quantity} un.</span>
                                     )}
@@ -479,7 +532,7 @@ export default function TicketPanel() {
                                 </div>
                                 <div>
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase block mb-1">Stock</label>
-                                    <input type="number" value={t.quantity} onChange={(e) => updateTicket(t.id, { quantity: parseInt(e.target.value) || 0 })} className="w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-purple-500" />
+                                    <NumericInput value={t.quantity} placeholder="100" onChange={(n) => updateTicket(t.id, { quantity: n })} className="w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-purple-500" />
                                 </div>
                             </div>
 
@@ -494,17 +547,13 @@ export default function TicketPanel() {
                                         </p>
                                     </div>
                                     <div className="w-20">
-                                        <input 
-                                            type="number" min="1"
-                                            value={t.ticketsIncluded ?? ''} 
-                                            onChange={(e) => updateTicket(t.id, { ticketsIncluded: e.target.value as unknown as number })} 
-                                            onBlur={(e) => {
-                                                if (Number(e.target.value) < 1) {
-                                                    alert("No se pueden mandar 0 entradas por compra.");
-                                                    updateTicket(t.id, { ticketsIncluded: 1 });
-                                                }
-                                            }}
-                                            className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 text-center font-bold" 
+                                        <NumericInput
+                                            value={t.ticketsIncluded ?? 1}
+                                            min={1}
+                                            placeholder="1"
+                                            onChange={(n) => updateTicket(t.id, { ticketsIncluded: n })}
+                                            className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 font-bold"
+                                            centerText
                                         />
                                     </div>
                                 </div>
@@ -530,13 +579,13 @@ export default function TicketPanel() {
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Inicio</label>
-                                                    <DatePicker selected={parseDate(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'date')} dateFormat="dd/MM/yyyy" customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                                    <DatePicker selected={parseTime(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
+                                                    <DatePicker selected={parseDate(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
+                                                    <DatePicker selected={parseTime(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Fin</label>
-                                                    <DatePicker selected={parseDate(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'date')} dateFormat="dd/MM/yyyy" customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                                    <DatePicker selected={parseTime(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
+                                                    <DatePicker selected={parseDate(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
+                                                    <DatePicker selected={parseTime(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                                 </div>
                                             </div>
 
