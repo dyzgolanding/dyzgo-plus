@@ -77,7 +77,7 @@ export default function AttendeesPage({ params }: { params: Promise<{ id: string
 
   return (
     // CONTENEDOR LIMPIO
-    <div className="relative z-10 max-w-[1600px] mx-auto space-y-8 animate-in fade-in pt-4">
+    <div className="relative z-10 w-full max-w-[1600px] mx-auto space-y-8 animate-in fade-in pt-4">
         
         {/* HEADER */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/5 pb-8">

@@ -12,7 +12,7 @@ import { es } from 'date-fns/locale/es'
 
 registerLocale('es', es)
 
-// Input numérico con estado local para evitar el bug de backspace en type="number"
+// --- COMPONENTE MEJORADO PARA SOLUCIONAR EL BACKSPACE Y LOS CEROS A LA IZQUIERDA ---
 function NumericInput({ value, min = 1, placeholder, onChange, className, centerText = false }: {
     value: number | string
     min?: number
@@ -21,11 +21,16 @@ function NumericInput({ value, min = 1, placeholder, onChange, className, center
     className?: string
     centerText?: boolean
 }) {
-    const [local, setLocal] = useState(value !== 0 && value !== '' ? String(value) : '')
+    const [local, setLocal] = useState(String(value))
 
     useEffect(() => {
-        setLocal(value !== 0 && value !== '' ? String(value) : '')
-    }, [value])
+        setLocal((prev) => {
+            // Permite que el input esté visualmente vacío si el valor actual coincide con el mínimo
+            if (prev === '' && value === min) return prev;
+            if (parseInt(prev) === value) return prev;
+            return String(value);
+        })
+    }, [value, min])
 
     return (
         <input
@@ -33,11 +38,24 @@ function NumericInput({ value, min = 1, placeholder, onChange, className, center
             inputMode="numeric"
             value={local}
             placeholder={placeholder}
+            onFocus={(e) => e.target.select()} // Selecciona el 0 automáticamente al hacer clic
             onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, '')
+                let digits = e.target.value.replace(/\D/g, '')
+                
+                // Evitar múltiples ceros a la izquierda (ej: 030 -> 30)
+                if (digits.length > 1 && digits.startsWith('0')) {
+                    digits = digits.replace(/^0+/, '');
+                    if (digits === '') digits = '0';
+                }
+                
                 setLocal(digits)
-                const n = parseInt(digits)
-                if (!isNaN(n) && n >= min) onChange(n)
+                
+                if (digits === '') {
+                    onChange(min) // Si borran todo, enviamos el mínimo silenciosamente
+                } else {
+                    const n = parseInt(digits)
+                    if (!isNaN(n)) onChange(n)
+                }
             }}
             onBlur={() => {
                 const n = parseInt(local)
@@ -109,7 +127,6 @@ const INITIAL_TICKET_STATE = {
 }
 
 const datePickerStyles = `
-  /* ... (Tus estilos de datepicker se mantienen exactamente igual) ... */
   .react-datepicker-wrapper { width: 100%; }
   .react-datepicker-popper { z-index: 9999 !important; }
   .react-datepicker { 
@@ -213,7 +230,6 @@ export default function TicketPanel() {
       updateTicket(ticketId, { [type === 'start' ? 'startDate' : 'endDate']: newIso })
   }
 
-  // --- CAMBIO: readOnly dinámico para bloquear fechas ---
   // eslint-disable-next-line react/display-name
   const CustomInput = forwardRef<HTMLInputElement, CustomInputProps>(({ value, onClick, onChange, onBlur, onKeyDown, placeholder, icon, isTime }, ref) => {
     
@@ -274,7 +290,9 @@ export default function TicketPanel() {
   })
 
   const handleAdd = () => {
-    if (!newTicketForm.name || (newTicketForm.type === 'paid' && !newTicketForm.price)) return
+    // Si es pagado, permite $0 porque el productor puede vender a $0, pero no debe estar vacío el campo "name".
+    // Evaluamos el length de String(price) por si acaso.
+    if (!newTicketForm.name || (newTicketForm.type === 'paid' && newTicketForm.price === '')) return
     
     const finalTicketsIncluded = Number(newTicketForm.ticketsIncluded);
     
@@ -314,6 +332,7 @@ export default function TicketPanel() {
 
   const handleDragEnter = (e: React.DragEvent, targetIndex: number) => {
       if (draggedIndex === null || draggedIndex === targetIndex) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       useEventStore.setState((state: any) => {
           const newTickets = [...state.eventData.tickets]
           const draggedTicket = newTickets[draggedIndex]
@@ -348,8 +367,24 @@ export default function TicketPanel() {
                 <input value={newTicketForm.name} onChange={(e) => setNewTicketForm({...newTicketForm, name: e.target.value})} placeholder="Nombre (ej: Promo 2x1)" className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-purple-500" />
                 
                 <div className="grid grid-cols-2 gap-3">
-                    <div><label className="text-[10px] text-zinc-500 font-bold uppercase mb-1 block">Precio Total</label>{newTicketForm.type === 'paid' ? <input value={newTicketForm.price} onChange={(e) => setNewTicketForm({...newTicketForm, price: e.target.value})} type="number" placeholder="$ 0" className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none" /> : <div className="w-full bg-zinc-800/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-500 italic">Gratis (Cortesía)</div>}</div>
-                    <div><label className="text-[10px] text-zinc-500 font-bold uppercase mb-1 block">Stock (Packs)</label><NumericInput value={newTicketForm.quantity} placeholder="100" onChange={(n) => setNewTicketForm({...newTicketForm, quantity: n})} className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none" /></div>
+                    <div>
+                        <label className="text-[10px] text-zinc-500 font-bold uppercase mb-1 block">Precio Total</label>
+                        {newTicketForm.type === 'paid' ? (
+                            <NumericInput 
+                                value={newTicketForm.price} 
+                                min={0}
+                                placeholder="$ 0" 
+                                onChange={(n) => setNewTicketForm({...newTicketForm, price: n})} 
+                                className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-purple-500" 
+                            />
+                        ) : (
+                            <div className="w-full bg-zinc-800/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-500 italic">Gratis (Cortesía)</div>
+                        )}
+                    </div>
+                    <div>
+                        <label className="text-[10px] text-zinc-500 font-bold uppercase mb-1 block">Stock (Packs)</label>
+                        <NumericInput value={newTicketForm.quantity} placeholder="100" onChange={(n) => setNewTicketForm({...newTicketForm, quantity: n})} className="w-full bg-black border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-purple-500" />
+                    </div>
                 </div>
 
                 {newTicketForm.type === 'paid' && (
@@ -433,7 +468,9 @@ export default function TicketPanel() {
       <div className="space-y-3">
         {eventData.tickets.map((t, index) => {
             const isExpanded = expandedTicketId === t.id
-            const isCourtesy = t.type === 'courtesy' || t.price === 0; 
+            // ¡ELIMINADA LA CONDICIÓN || t.price === 0!
+            // Ahora la cortesía es estricta solo si fue creada como cortesía
+            const isCourtesy = t.type === 'courtesy'; 
             
             const isScheduled = t.startDate ? currentTime < new Date(t.startDate) : false;
             const isExpired = t.endDate ? currentTime >= new Date(t.endDate) : false;
@@ -447,7 +484,7 @@ export default function TicketPanel() {
                     onDragEnter={(e) => handleDragEnter(e, index)}
                     onDragEnd={handleDragEnd}
                     onDragOver={(e) => e.preventDefault()}
-                    className={`bg-zinc-900 border transition-all duration-300 rounded-xl overflow-hidden ${isExpanded ? 'border-purple-500/50 shadow-lg shadow-purple-900/10' : 'border-zinc-800'} ${draggedIndex === index ? 'opacity-50' : 'opacity-100'} ${!isCourtesy && !t.isActive ? 'opacity-40 grayscale' : ''}`}
+                    className={`bg-zinc-900 border transition-all duration-300 rounded-xl overflow-hidden ${isExpanded ? 'border-purple-500/50' : 'border-zinc-800'} ${draggedIndex === index ? 'opacity-50' : 'opacity-100'} ${!isCourtesy && !t.isActive ? 'opacity-40 grayscale' : ''}`}
                 >
                     <div className="p-4 flex justify-between items-center cursor-pointer" onClick={() => { 
                         if (expandedTicketId === t.id) {
@@ -527,7 +564,12 @@ export default function TicketPanel() {
                                     {t.type === 'courtesy' ? (
                                         <div className="w-full bg-zinc-800/50 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-500 italic">Gratis (Cortesía)</div>
                                     ) : (
-                                        <input type="number" value={t.price} onChange={(e) => updateTicket(t.id, { price: Number(e.target.value) })} className="w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-purple-500" />
+                                        <NumericInput 
+                                            value={t.price} 
+                                            min={0}
+                                            onChange={(n) => updateTicket(t.id, { price: n })} 
+                                            className="w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-purple-500" 
+                                        />
                                     )}
                                 </div>
                                 <div>

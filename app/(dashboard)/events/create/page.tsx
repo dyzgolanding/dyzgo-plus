@@ -302,6 +302,8 @@ function CreateEventContent() {
         instagram_url: eventData.socialLinks.instagram,
         category: eventData.category,
         theme_color: eventData.themeColor,
+        theme_color_end: eventData.themeColorEnd,
+        accent_color: eventData.accentColor,
         is_active: finalStatus === 'active',
         status: finalStatus 
       }

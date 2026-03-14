@@ -108,7 +108,7 @@ export default function EventDashboardPage({ params }: { params: Promise<{ id: s
   const totalRevenue = data?.tickets?.reduce((acc, t) => acc + (t.price * (t.quantity_sold || 0)), 0) || 0
 
   return (
-    <div className="relative z-10 max-w-[1600px] mx-auto space-y-8 animate-in fade-in pt-4">
+    <div className="relative z-10 w-full max-w-[1600px] mx-auto space-y-8 animate-in fade-in pt-4">
       {/* STATS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
@@ -149,7 +149,7 @@ export default function EventDashboardPage({ params }: { params: Promise<{ id: s
           />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-[calc(100vh-380px)]">
           
           {/* RENDIMIENTO */}
           <div className="lg:col-span-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 shadow-2xl shadow-purple-900/10 flex flex-col h-full min-h-[320px]">
