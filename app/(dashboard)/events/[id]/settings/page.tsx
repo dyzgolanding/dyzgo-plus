@@ -41,7 +41,7 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
   const [isLive, setIsLive] = useState(false) 
   const [maxTickets, setMaxTickets] = useState(4)
   const [isTransferable, setIsTransferable] = useState(true)
-  const [isResellable, setIsResellable] = useState(false)
+  const [isResellable, setIsResellable] = useState(true)
   
   // ESTADO INTERNO: Fecha de fin para validación
   const [eventEndDate, setEventEndDate] = useState<string | null>(null)
@@ -69,7 +69,7 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
         setIsLive(event.status === 'active')
         if (event.max_tickets_per_person) setMaxTickets(event.max_tickets_per_person)
         setIsTransferable(event.is_transferable ?? true)
-        setIsResellable(event.is_resellable ?? false)
+        setIsResellable(event.is_resellable ?? true)
         
         // Guardamos fechas para validar al guardar
         setEventEndDate(event.end_date || event.date)

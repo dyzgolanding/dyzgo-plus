@@ -36,9 +36,12 @@ export async function login(formData: FormData) {
   const password = formData.get('password')?.toString() || ''
 
   // 1. Iniciar Sesión
+  const captchaToken = formData.get('captchaToken')?.toString()
+
   const { data: { user }, error } = await supabase.auth.signInWithPassword({
     email,
     password,
+    options: captchaToken ? { captchaToken } : undefined,
   })
 
   if (error) {
@@ -55,7 +58,7 @@ export async function login(formData: FormData) {
         .maybeSingle()
 
     // Si no es admin, fuera.
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'god')) {
         await supabase.auth.signOut()
         return redirect(`/login?error=${encodeURIComponent('Acceso denegado. No eres administrador.')}`)
     }

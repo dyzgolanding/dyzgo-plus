@@ -93,7 +93,7 @@ interface TicketTierRow {
   sold_tickets?: number
 }
 
-const initialEventData: EventData = {
+export const initialEventData: EventData = {
   id: null,
   name: '',
   venue: '',
@@ -121,7 +121,7 @@ const initialEventData: EventData = {
   themeColorEnd: '#090014',
   cardBackgroundColor: '#1a0b2e',
   borderColor: '#8A2BE2',
-  accentColor: '#FF00FF',
+  accentColor: '#FF31D8',
   borderRadius: 'rounded-[2rem]',
   fontStyle: 'font-sans',
   tickets: [],
@@ -176,7 +176,7 @@ export const useEventStore = create<EventState>((set, get) => ({
   eventData: initialEventData,
   activeSection: 'info',
 
-  resetEvent: () => set({ eventData: initialEventData, activeSection: 'info' }),
+  resetEvent: () => set({ eventData: initialEventData, activeSection: 'info', tempFile: null } as Partial<EventState>),
 
   setEventName: (name) => set((state) => ({ eventData: { ...state.eventData, name } })),
   setEventVenue: (venue) => set((state) => ({ eventData: { ...state.eventData, venue } })),

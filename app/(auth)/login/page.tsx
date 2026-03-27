@@ -1,25 +1,44 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ArrowRight, Lock, Mail, Sparkles, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react'
-import { login } from './actions' 
+import HCaptcha from '@hcaptcha/react-hcaptcha'
+import { login } from './actions'
 
 // 1. Separamos la lógica del formulario en un componente interno
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  
+  const captchaRef = useRef<HCaptcha>(null)
+  const captchaResolveRef = useRef<((token: string) => void) | null>(null)
+
   const searchParams = useSearchParams()
   const errorMsg = searchParams.get('error')
 
+  const getCaptchaToken = (): Promise<string> => {
+    return new Promise((resolve) => {
+      captchaResolveRef.current = resolve
+      captchaRef.current?.execute()
+    })
+  }
+
+  const handleCaptchaVerify = (token: string) => {
+    captchaResolveRef.current?.(token)
+    captchaResolveRef.current = null
+  }
+
   const handleSubmit = async (formData: FormData) => {
     setLoading(true)
-    // Next.js maneja la redirección lanzando un error, así que el setLoading(false)
-    // podría no ejecutarse si redirige exitosamente, lo cual está bien.
-    await login(formData) 
-    setLoading(false)
+    try {
+      const token = await getCaptchaToken()
+      formData.append('captchaToken', token)
+      await login(formData)
+    } finally {
+      setLoading(false)
+      captchaRef.current?.resetCaptcha()
+    }
   }
 
   return (
@@ -101,7 +120,14 @@ function LoginForm() {
                         </div>
                     </div>
 
-                    <button 
+                    <HCaptcha
+                        ref={captchaRef}
+                        sitekey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY!}
+                        size="invisible"
+                        onVerify={handleCaptchaVerify}
+                    />
+
+                    <button
                         type="submit"
                         disabled={loading}
                         className="w-full py-4 rounded-2xl font-bold text-xs uppercase tracking-widest text-white relative group overflow-hidden transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 mt-4 shadow-lg shadow-purple-900/20"

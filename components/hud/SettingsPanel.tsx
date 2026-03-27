@@ -67,9 +67,9 @@ export default function SettingsPanel() {
             
             // Sincronizamos las reglas comerciales si difieren del store
             const currentTrans = eventData.settings?.is_transferable ?? true
-            const currentResell = eventData.settings?.is_resellable ?? false
+            const currentResell = eventData.settings?.is_resellable ?? true
             const dbTrans = data.is_transferable ?? true
-            const dbResell = data.is_resellable ?? false
+            const dbResell = data.is_resellable ?? true
             
             if (currentTrans !== dbTrans || currentResell !== dbResell) {
                 // Forzamos actualización directa saltándonos las restricciones de updateSettings
@@ -124,7 +124,7 @@ export default function SettingsPanel() {
         updateSettings({ isPrivate })
         const { error } = await supabase
             .from('events')
-            .update({ status: targetStatus })
+            .update({ status: targetStatus, is_active: targetStatus === 'active' })
             .eq('id', eventData.id)
 
         if (error) {
@@ -192,6 +192,45 @@ export default function SettingsPanel() {
   }
 
   const isPublic = currentStatus === 'active' || currentStatus === 'published'
+  const isInfo = currentStatus === 'info'
+
+  const handleToggleInfo = async () => {
+    if (updating) return
+    const targetStatus = isInfo ? 'draft' : 'info'
+    setCurrentStatus(targetStatus)
+
+    if (!eventData.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        useEventStore.setState((state: any) => ({
+            ...state,
+            eventData: { ...state.eventData, status: targetStatus }
+        }))
+        return
+    }
+
+    setUpdating(true)
+    try {
+        const { error } = await supabase
+            .from('events')
+            .update({ status: targetStatus, is_active: targetStatus === 'info' || targetStatus === 'active' })
+            .eq('id', eventData.id)
+
+        if (error) {
+            console.error('Error actualizando:', error)
+            setCurrentStatus(isInfo ? 'info' : 'draft')
+        } else {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            useEventStore.setState((state: any) => ({
+                ...state,
+                eventData: { ...state.eventData, status: targetStatus }
+            }))
+        }
+    } catch (err) {
+        console.error(err)
+    } finally {
+        setUpdating(false)
+    }
+  }
 
   return (
     <div className="space-y-8 animate-in slide-in-from-left duration-300 pb-10">
@@ -252,6 +291,22 @@ export default function SettingsPanel() {
 
       <div className="space-y-3">
           <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+             Tipo de Evento
+          </label>
+          <div className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${isInfo ? 'bg-blue-500/10 border-blue-500/40' : 'bg-zinc-900 border-zinc-800'}`}>
+              <div>
+                  <p className={`text-sm font-bold ${isInfo ? 'text-blue-300' : 'text-zinc-300'}`}>Informativo</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">Sin venta de tickets. Solo difusión.</p>
+              </div>
+              <ToggleButton
+                  active={isInfo}
+                  onClick={handleToggleInfo}
+              />
+          </div>
+      </div>
+
+      <div className="space-y-3">
+          <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
              Reglas Comerciales
           </label>
           <div className="space-y-4 p-5 bg-purple-600/5 border border-purple-500/20 rounded-2xl">
@@ -271,7 +326,7 @@ export default function SettingsPanel() {
               <div className="flex items-center justify-between">
                 <span className="text-xs text-zinc-300">Reventa Oficial</span>
                 <ToggleButton 
-                    active={eventData.settings?.is_resellable ?? false} 
+                    active={eventData.settings?.is_resellable ?? true}
                     onClick={() => handleToggleRule('is_resellable')} 
                 />
               </div>

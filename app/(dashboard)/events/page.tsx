@@ -272,7 +272,7 @@ export default function EventsPage() {
                 <span className="text-white/40 text-sm">
                     Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount} eventos
                 </span>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mr-16">
                     <button
                         onClick={() => setPage(p => Math.max(0, p - 1))}
                         disabled={page === 0}

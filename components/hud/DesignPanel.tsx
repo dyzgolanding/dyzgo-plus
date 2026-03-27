@@ -1,50 +1,51 @@
 'use client'
 import { useEventStore } from '@/store/useEventStore'
-import { ImageIcon, Palette, UploadCloud, MousePointerClick } from 'lucide-react'
+import { ImageIcon, MousePointerClick, Pipette, UploadCloud } from 'lucide-react'
 import { useRef, useState, useEffect } from 'react'
 import { HexColorPicker } from 'react-colorful'
 
-// Interfaz para tipar el store localmente y evitar 'any'
+// EyeDropper API (Chrome/Edge)
+declare global {
+  interface Window {
+    EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> }
+  }
+}
+
 interface EventDataDesign {
-  themeColor: string
-  themeColorEnd?: string
   accentColor?: string
   coverImage?: string
 }
 
 interface DesignStoreActions {
   eventData: EventDataDesign
-  setThemeColor: (c: string) => void
-  setThemeColorEnd: (c: string) => void
   setAccentColor: (c: string) => void
   setCoverImage: (url: string) => void
 }
 
 export default function DesignPanel() {
-  // Casting seguro en lugar de @ts-ignore
   const store = useEventStore() as unknown as DesignStoreActions
-  const { 
-    eventData, 
-    setThemeColor, 
-    setThemeColorEnd, 
-    setAccentColor, 
-    setCoverImage 
-  } = store
+  const { eventData, setAccentColor, setCoverImage } = store
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
-  // Estados para los pickers
-  const [showStartPicker, setShowStartPicker] = useState(false)
-  const [showEndPicker, setShowEndPicker] = useState(false)
   const [showAccentPicker, setShowAccentPicker] = useState(false)
+  const [eyeDropperSupported] = useState(() => typeof window !== 'undefined' && !!window.EyeDropper)
 
-  // Valores con fallback seguros
-  const themeColorEnd = eventData.themeColorEnd || '#090014'
-  const currentAccent = eventData.accentColor || '#FF00FF'
+  const handleEyeDropper = async () => {
+    if (!window.EyeDropper) return
+    try {
+      const dropper = new window.EyeDropper()
+      const result = await dropper.open()
+      setAccentColor(result.sRGBHex)
+    } catch {
+      // usuario canceló
+    }
+  }
+
+  const currentAccent = eventData.accentColor || '#FF31D8'
 
   useEffect(() => {
     if (eventData.accentColor === '#ffffff') {
-        setAccentColor('#FF00FF')
+      setAccentColor('#FF31D8')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -53,92 +54,72 @@ export default function DesignPanel() {
     const file = e.target.files?.[0]
     if (file) {
       const localUrl = URL.createObjectURL(file)
-      setCoverImage(localUrl) 
-      
-      // Acceso directo al store de Zustand para guardar el archivo temporal
+      setCoverImage(localUrl)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       useEventStore.setState((state: any) => ({ ...state, tempFile: file }))
     }
   }
 
-  const closeAllPickers = () => {
-      setShowStartPicker(false);
-      setShowEndPicker(false);
-      setShowAccentPicker(false);
-  }
-
   return (
     <div className="space-y-8 animate-in slide-in-from-left duration-300 relative">
-       
-       {/* BACKDROP */}
-       {(showStartPicker || showEndPicker || showAccentPicker) && (
-          <div className="fixed inset-0 z-40" onClick={closeAllPickers} />
-       )}
 
-       <div>
+      {showAccentPicker && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowAccentPicker(false)} />
+      )}
+
+      <div>
         <h2 className="text-xl font-bold text-white mb-1">Diseño y Marca</h2>
-        <p className="text-zinc-500 text-xs">Personaliza la gradiente de fondo y detalles.</p>
+        <p className="text-zinc-500 text-xs">Personaliza el color de acento del evento.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-          
-          {/* 1. GRADIENTE DEL EVENTO (2 COLORES) */}
-          <div className="space-y-3 relative z-50">
-            <label className="text-xs font-medium text-zinc-400 flex items-center gap-2">
-                <Palette size={14} /> Gradiente de Fondo
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-                {/* Inicio */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center justify-between relative">
-                    <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Inicio</span>
-                        <div className="flex items-center">
-                            <span className="text-xs font-bold text-zinc-500 font-mono mr-1">#</span>
-                            <input type="text" value={eventData.themeColor.replace('#', '')} onChange={(e) => setThemeColor(`#${e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6)}`)} className="bg-transparent text-xs font-bold text-white font-mono outline-none w-16" />
-                        </div>
-                    </div>
-                    <div onClick={() => { closeAllPickers(); setShowStartPicker(true); }} className="w-8 h-8 rounded-full border border-zinc-700 cursor-pointer shadow-sm" style={{ backgroundColor: eventData.themeColor }} />
-                    {showStartPicker && (<div className="absolute left-0 top-14 bg-zinc-950 border border-zinc-800 p-3 rounded-xl shadow-2xl z-50"><HexColorPicker color={eventData.themeColor} onChange={setThemeColor} /></div>)}
-                </div>
-                {/* Fin */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center justify-between relative">
-                    <div className="flex flex-col">
-                        <span className="text-[9px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Fin</span>
-                        <div className="flex items-center">
-                            <span className="text-xs font-bold text-zinc-500 font-mono mr-1">#</span>
-                            <input type="text" value={themeColorEnd.replace('#', '')} onChange={(e) => setThemeColorEnd(`#${e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6)}`)} className="bg-transparent text-xs font-bold text-white font-mono outline-none w-16" />
-                        </div>
-                    </div>
-                    <div onClick={() => { closeAllPickers(); setShowEndPicker(true); }} className="w-8 h-8 rounded-full border border-zinc-700 cursor-pointer shadow-sm" style={{ backgroundColor: themeColorEnd }} />
-                    {showEndPicker && (<div className="absolute right-0 top-14 bg-zinc-950 border border-zinc-800 p-3 rounded-xl shadow-2xl z-50"><HexColorPicker color={themeColorEnd} onChange={setThemeColorEnd} /></div>)}
-                </div>
-            </div>
-          </div>
 
-          {/* 2. COLOR DE ACENTO */}
-          <div className="space-y-3 relative z-40">
-            <label className="text-xs font-medium text-zinc-400 flex items-center gap-2">
-                <MousePointerClick size={14} /> Color de Acento (Botones)
-            </label>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex flex-col">
-                    <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Código Hex</span>
-                    <div className="flex items-center border-b border-transparent focus-within:border-purple-500 transition-colors">
-                        <span className="text-sm font-bold text-zinc-500 font-mono select-none">#</span>
-                        <input type="text" value={currentAccent.replace('#', '')} onChange={(e) => setAccentColor(`#${e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6)}`)} className="bg-transparent text-sm font-bold text-white uppercase tracking-widest font-mono outline-none w-20 placeholder-zinc-700" />
-                    </div>
+        {/* COLOR DE ACENTO */}
+        <div className="space-y-3 relative z-50">
+          <label className="text-xs font-medium text-zinc-400 flex items-center gap-2">
+            <MousePointerClick size={14} /> Color de Acento
+          </label>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Código Hex</span>
+              <div className="flex items-center border-b border-transparent focus-within:border-purple-500 transition-colors">
+                <span className="text-sm font-bold text-zinc-500 font-mono select-none">#</span>
+                <input
+                  type="text"
+                  value={currentAccent.replace('#', '')}
+                  onChange={(e) => setAccentColor(`#${e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 6)}`)}
+                  className="bg-transparent text-sm font-bold text-white uppercase tracking-widest font-mono outline-none w-20 placeholder-zinc-700"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {eyeDropperSupported && (
+                <button
+                  onClick={handleEyeDropper}
+                  title="Seleccionar color de la pantalla"
+                  className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center hover:bg-zinc-700 hover:border-zinc-600 transition-all"
+                >
+                  <Pipette size={16} className="text-zinc-300" />
+                </button>
+              )}
+              <div className="relative">
+              <div
+                onClick={(e) => { e.stopPropagation(); setShowAccentPicker(!showAccentPicker); }}
+                className="w-12 h-12 rounded-full border-2 border-zinc-700 shadow-lg cursor-pointer hover:scale-105 transition-transform"
+                style={{ backgroundColor: currentAccent }}
+              />
+              {showAccentPicker && (
+                <div
+                  className="absolute right-0 top-14 bg-zinc-950 border border-zinc-800 p-3 rounded-xl shadow-2xl animate-in zoom-in-95 z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <HexColorPicker color={currentAccent} onChange={setAccentColor} />
                 </div>
-                <div className="relative">
-                    {/* Evento stopPropagation ayuda a que no choque con el backdrop */}
-                    <div onClick={(e) => { e.stopPropagation(); closeAllPickers(); setShowAccentPicker(!showAccentPicker); }} className="w-12 h-12 rounded-full border-2 border-zinc-700 shadow-lg cursor-pointer hover:scale-105 transition-transform" style={{ backgroundColor: currentAccent }} />
-                    {showAccentPicker && (
-                        <div className="absolute right-0 top-14 bg-zinc-950 border border-zinc-800 p-3 rounded-xl shadow-2xl animate-in zoom-in-95 z-50" onClick={(e) => e.stopPropagation()}>
-                            <HexColorPicker color={currentAccent} onChange={(color) => setAccentColor(color)} />
-                        </div>
-                    )}
-                </div>
+              )}
+              </div>
             </div>
           </div>
+        </div>
 
       </div>
 

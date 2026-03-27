@@ -308,7 +308,7 @@ export default function GeneralPanel() {
   const availableCommunes = useMemo(() => {
     if (!eventData.region) return []
     const regionData = CHILE_DATA.find(r => r.region === eventData.region)
-    return regionData ? regionData.comunas : []
+    return regionData ? [...regionData.comunas].sort((a, b) => a.localeCompare(b, 'es')) : []
   }, [eventData.region])
 
   useEffect(() => {
@@ -609,10 +609,11 @@ export default function GeneralPanel() {
                     <label className="text-[10px] font-bold text-zinc-500 uppercase flex items-center gap-1">
                         <Hash size={10} /> Número
                     </label>
-                    <input 
-                        type="text" 
-                        value={eventData.number || ''} 
-                        onChange={(e) => setEventNumber && setEventNumber(e.target.value)}
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        value={eventData.number || ''}
+                        onChange={(e) => setEventNumber && setEventNumber(e.target.value.replace(/\D/g, ''))}
                         placeholder="4990"
                         className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 text-white font-bold placeholder:text-zinc-600 text-center"
                     />

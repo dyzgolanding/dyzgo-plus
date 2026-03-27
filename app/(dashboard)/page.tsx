@@ -81,7 +81,8 @@ interface AlertItem {
 export default function GeneralDashboard() {
   const { currentOrgId } = useOrg()
   const [loading, setLoading] = useState(true)
-  const [userName, setUserName] = useState('Productor') 
+  const [userName, setUserName] = useState('Productor')
+  const [userRole, setUserRole] = useState<string | null>(null)
   
   const [globalStats, setGlobalStats] = useState<GlobalStats>({
     balanceAvailable: 0,
@@ -105,12 +106,15 @@ export default function GeneralDashboard() {
         if (user) {
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('full_name')
+                .select('full_name, role')
                 .eq('id', user.id)
                 .single()
-            
+
             if (profile?.full_name) {
                 setUserName(profile.full_name.split(' ')[0])
+            }
+            if (profile?.role) {
+                setUserRole(profile.role)
             }
         }
 
@@ -285,7 +289,7 @@ export default function GeneralDashboard() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pt-2">
           <div>
               <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-white">
-                  Hola, <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#8A2BE2] to-[#FF007F]">{userName}.</span>
+                  Hola, <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#8A2BE2] to-[#FF007F]">{userName}.</span>{userRole === 'god' && <span className="block text-2xl md:text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-[#FFD700] to-[#FF007F]"> Mi productor favorito</span>}
               </h1>
               <p className="text-white/40 text-sm font-medium mt-2 max-w-lg">
                   Acá podrás ver el resumen de tus eventos. Para ver información más detallada, anda a la sección de analíticas.

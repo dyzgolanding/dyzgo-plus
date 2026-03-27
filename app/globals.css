@@ -166,3 +166,12 @@ svg:focus {
   scrollbar-width: thin;
   scrollbar-color: #3f3f46 transparent;
 }
+
+/* Live preview — sin scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

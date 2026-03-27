@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { 
-  Camera, Building2, Globe, Instagram, CreditCard, Save, History, 
+  Camera, Building2, Globe, Instagram, CreditCard, Save, History,
   CheckCircle2, Clock, FileText, Loader2, AlertCircle, ChevronDown, Trash2, AlertTriangle, Image as ImageIcon,
-  Palette, LayoutTemplate, Check
+  Palette, LayoutTemplate, Check, Bell
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useOrg } from '@/components/providers/org-provider'
@@ -355,86 +355,119 @@ export default function SettingsPage() {
                 {/* SECCIÓN PERFIL */}
                 {activeTab === 'profile' && (
                     <section className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                        {/* Preview Card */}
-                        <div className="relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl shadow-purple-900/10 overflow-hidden pb-6"> 
-                            
-                            {/* Banner */}
-                            <div className="h-40 w-full bg-black/40 border-b border-white/5 relative overflow-hidden group">
+                        {/* ── VISTA PREVIA MÓVIL (replica brand-profile.tsx) ── */}
+                        <div className="relative bg-zinc-950 border border-white/8 rounded-[2rem] shadow-2xl overflow-hidden">
+
+                            {/* Label Vista Previa */}
+                            <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/10">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                                <span className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Vista Previa App</span>
+                            </div>
+
+                            {/* BANNER con upload */}
+                            <div className="h-52 w-full bg-zinc-900 relative overflow-hidden group">
                                 {profile.banner_url ? (
                                     /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img src={profile.banner_url} alt="Banner" className="h-full w-full object-cover opacity-80 transition-transform duration-700 group-hover:scale-105" />
+                                    <img src={profile.banner_url} alt="Banner" className="absolute inset-0 h-full w-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-105" />
                                 ) : (
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
-                                        <ImageIcon size={48} className="text-white/20" />
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                                        <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                                            <ImageIcon size={22} className="text-white/20" />
+                                        </div>
+                                        <span className="text-[11px] text-white/20 font-medium">Sin banner</span>
                                     </div>
                                 )}
-                                
-                                <div className="absolute inset-0 bg-gradient-to-t from-[#030005] via-transparent to-transparent pointer-events-none" />
+                                {/* Fade bottom igual que la app */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent pointer-events-none" />
 
                                 {(isEditable || isCreating) && (
                                     <>
-                                        <label 
-                                            htmlFor="banner-upload" 
-                                            className="absolute top-4 right-4 px-3 py-1.5 bg-black/50 hover:bg-black/80 backdrop-blur-md rounded-lg cursor-pointer flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-white border border-white/10 transition-all opacity-0 group-hover:opacity-100 hover:border-white/30"
-                                        >
-                                            <Camera size={12} /> Cambiar
+                                        <label htmlFor="banner-upload" className="absolute top-12 right-4 px-3 py-1.5 bg-black/60 hover:bg-black/90 backdrop-blur-md rounded-xl cursor-pointer flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-white border border-white/10 transition-all opacity-0 group-hover:opacity-100">
+                                            <Camera size={11} /> Cambiar banner
                                         </label>
                                         <input type="file" accept="image/*" id="banner-upload" className="hidden" onChange={handleImageUpload('banner_url')} disabled={uploading} />
                                     </>
                                 )}
                             </div>
 
-                            {/* Logo & Info */}
-                            <div className="px-8 relative -mt-12 flex flex-col items-center text-center">
-                                <div className="relative group">
-                                    <div className="h-24 w-24 rounded-2xl bg-[#030005] border-[3px] border-[#030005] flex items-center justify-center overflow-hidden shadow-2xl relative">
-                                        {profile.logo_url ? (
-                                            /* eslint-disable-next-line @next/next/no-img-element */
-                                            <img src={profile.logo_url} alt="Logo" className="h-full w-full object-cover" />
-                                        ) : (
-                                            <Building2 size={24} className="text-white/20" />
-                                        )}
-                                        {uploading && (
-                                            <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-10 backdrop-blur-sm">
-                                                <Loader2 size={20} className="text-[#8A2BE2] animate-spin" />
-                                            </div>
-                                        )}
+                            {/* LOGO centrado (igual layout que la app: superpuesto sobre el banner) */}
+                            <div className="flex flex-col items-center -mt-14 z-10 relative px-8 pb-8">
+                                {/* Logo con upload */}
+                                <div className="relative group/logo mb-4">
+                                    <div className="w-28 h-28 rounded-full bg-zinc-950 p-[3px]" style={{ boxShadow: `0 0 28px ${profile.primary_color || '#8B5CF6'}55` }}>
+                                        <div className="w-full h-full rounded-full bg-zinc-900 border border-white/15 overflow-hidden flex items-center justify-center relative">
+                                            {profile.logo_url ? (
+                                                /* eslint-disable-next-line @next/next/no-img-element */
+                                                <img src={profile.logo_url} alt="Logo" className="h-full w-full object-cover" />
+                                            ) : (
+                                                <Building2 size={30} className="text-white/20" />
+                                            )}
+                                            {uploading && (
+                                                <div className="absolute inset-0 bg-black/80 flex items-center justify-center backdrop-blur-sm">
+                                                    <Loader2 size={20} className="animate-spin text-white" />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                     {(isEditable || isCreating) && (
                                         <>
-                                            <label htmlFor="logo-upload" 
-                                                className="absolute -bottom-1.5 -right-1.5 p-2 rounded-xl cursor-pointer shadow-lg transition-all active:scale-90 border-2 border-[#030005] z-20 hover:scale-110"
-                                                style={{ backgroundColor: profile.primary_color || '#8B5CF6' }}
-                                            >
-                                                <Camera size={12} className="text-white" />
+                                            <label htmlFor="logo-upload" className="absolute -bottom-1 -right-1 p-2 rounded-xl cursor-pointer shadow-lg transition-all hover:scale-110 active:scale-90 border-2 border-zinc-950 z-10" style={{ backgroundColor: profile.primary_color || '#8B5CF6' }}>
+                                                <Camera size={13} className="text-white" />
                                             </label>
                                             <input type="file" accept="image/*" id="logo-upload" className="hidden" onChange={handleImageUpload('logo_url')} disabled={uploading} />
                                         </>
                                     )}
                                 </div>
 
-                                <div className="mt-4 space-y-1 max-w-lg">
-                                    <h2 className="text-2xl font-black text-white tracking-tighter uppercase">
-                                        {profile.name || "Tu Productora"}
-                                    </h2>
-                                    {profile.description && (
-                                        <p className="text-xs font-medium text-white/40 leading-relaxed line-clamp-2">
-                                            {profile.description}
-                                        </p>
-                                    )}
+                                {/* Nombre centrado */}
+                                <h2 className="text-2xl font-black text-white italic tracking-tight leading-none text-center mb-3">
+                                    {profile.name || <span className="text-white/20">Tu Productora</span>}
+                                </h2>
+
+                                {/* Stats pills */}
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1.5">
+                                        <span className="text-white text-[12px] font-bold">0</span>
+                                        <span className="text-white/40 text-[11px] font-semibold">eventos</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border" style={{ backgroundColor: `${profile.primary_color || '#8B5CF6'}15`, borderColor: `${profile.primary_color || '#8B5CF6'}40` }}>
+                                        <CheckCircle2 size={11} style={{ color: profile.primary_color || '#8B5CF6' }} />
+                                        <span className="text-[11px] font-semibold" style={{ color: profile.primary_color || '#8B5CF6' }}>Siguiendo</span>
+                                    </div>
                                 </div>
 
-                                <div className="flex gap-2 mt-4">
-                                    {profile.instagram_handle && (
-                                        <a href={`https://instagram.com/${profile.instagram_handle.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="h-8 px-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 flex items-center gap-1.5 text-[10px] font-bold text-white transition-all">
-                                            <Instagram size={12} className="text-[#E1306C]" /> Instagram
-                                        </a>
-                                    )}
-                                    {profile.website_url && (
-                                        <a href={profile.website_url} target="_blank" rel="noopener noreferrer" className="h-8 px-3 rounded-lg bg-white/5 border border-white/5 hover:bg-white/10 flex items-center gap-1.5 text-[10px] font-bold text-white transition-all">
-                                            <Globe size={12} className="text-[#3b82f6]" /> Web
-                                        </a>
-                                    )}
+                                {/* Descripción centrada */}
+                                {profile.description ? (
+                                    <p className="text-white/40 text-[12px] text-center leading-relaxed line-clamp-3 max-w-sm mb-6">
+                                        {profile.description}
+                                    </p>
+                                ) : (
+                                    <p className="text-white/15 text-[12px] text-center mb-6 italic">Agrega una descripción abajo</p>
+                                )}
+
+                                {/* Botón seguir (preview) */}
+                                <div className="w-full max-w-sm space-y-3">
+                                    <div className="w-full h-14 bg-white rounded-3xl flex items-center justify-center gap-2.5 shadow-[0_4px_20px_rgba(255,255,255,0.12)]">
+                                        <CheckCircle2 size={18} className="text-black" />
+                                        <span className="text-black font-black uppercase tracking-wider text-[12px]">Siguiendo Productora</span>
+                                    </div>
+
+                                    {/* Acciones sociales */}
+                                    <div className="grid grid-cols-3 gap-2.5">
+                                        <div className="h-20 rounded-2xl border border-white/5 relative overflow-hidden flex flex-col items-center justify-center gap-1.5">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-[#f09433] via-[#dc2743] to-[#bc1888] opacity-20" />
+                                            <Instagram size={18} className="text-white/80 relative z-10" />
+                                            <span className="text-[9px] font-bold text-white/70 relative z-10">Instagram</span>
+                                        </div>
+                                        <div className="h-20 rounded-2xl border border-[#00e5ff]/20 bg-[#00e5ff]/8 flex flex-col items-center justify-center gap-1.5">
+                                            <Globe size={18} className="text-[#00e5ff]/80" />
+                                            <span className="text-[9px] font-bold text-[#00e5ff]/70">Sitio Web</span>
+                                        </div>
+                                        <div className="h-20 rounded-2xl border flex flex-col items-center justify-center gap-1.5" style={{ borderColor: `${profile.primary_color || '#8B5CF6'}35`, backgroundColor: `${profile.primary_color || '#8B5CF6'}12` }}>
+                                            <Bell size={18} style={{ color: profile.primary_color || '#8B5CF6', opacity: 0.85 }} />
+                                            <span className="text-[9px] font-bold" style={{ color: profile.primary_color || '#8B5CF6', opacity: 0.75 }}>Alertas On</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

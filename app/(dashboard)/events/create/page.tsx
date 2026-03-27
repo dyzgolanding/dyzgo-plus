@@ -16,7 +16,7 @@ const TicketPanel     = dynamic(() => import('@/components/hud/TicketPanel'),   
 const DesignPanel     = dynamic(() => import('@/components/hud/DesignPanel'),     { ssr: false, loading: PanelFallback })
 const SettingsPanel   = dynamic(() => import('@/components/hud/SettingsPanel'),   { ssr: false, loading: PanelFallback })
 const ExperiencePanel = dynamic(() => import('@/components/hud/ExperiencePanel'), { ssr: false, loading: PanelFallback })
-import { useEventStore } from '@/store/useEventStore'
+import { useEventStore, initialEventData } from '@/store/useEventStore'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
@@ -98,9 +98,8 @@ function CreateEventContent() {
 
   useEffect(() => {
     if (!eventId) {
-      if (!initialDataRef.current) {
-        initialDataRef.current = JSON.stringify(eventData);
-      }
+      useEventStore.getState().resetEvent()
+      initialDataRef.current = JSON.stringify(initialEventData)
       setAuthChecked(true)
       return
     }
@@ -165,12 +164,14 @@ function CreateEventContent() {
             })) : [],
 
             settings: {
-              isPrivate: event.status === 'draft', 
+              isPrivate: event.status === 'draft',
               absorbFee: false,
               showRemaining: true,
               allowMarketplace: true,
               allowOverprice: false,
-              showInstagram: !!event.instagram_url
+              showInstagram: !!event.instagram_url,
+              is_transferable: event.is_transferable ?? true,
+              is_resellable: event.is_resellable ?? true,
             }
         };
 
@@ -276,7 +277,9 @@ function CreateEventContent() {
           }
       }
 
-      const finalStatus = eventData.settings?.isPrivate ? 'draft' : 'active'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const storeStatus = (useEventStore.getState() as any).eventData?.status
+      const finalStatus = storeStatus === 'info' ? 'info' : (eventData.settings?.isPrivate ? 'draft' : 'active')
 
       const eventPayload = {
         organizer_id: user.id, 
@@ -301,10 +304,8 @@ function CreateEventContent() {
         prohibited_items: eventData.prohibitedItems,
         instagram_url: eventData.socialLinks.instagram,
         category: eventData.category,
-        theme_color: eventData.themeColor,
-        theme_color_end: eventData.themeColorEnd,
         accent_color: eventData.accentColor,
-        is_active: finalStatus === 'active',
+        is_active: finalStatus === 'active' || finalStatus === 'info',
         status: finalStatus 
       }
 
@@ -345,7 +346,7 @@ function CreateEventContent() {
       }
 
       if (eventData.tickets.length > 0) {
-        const ticketsToSave = eventData.tickets.map(t => {
+        const ticketsToSave = eventData.tickets.map((t, index) => {
             const startHourStr = t.startDate ? new Date(t.startDate).toTimeString().slice(0, 5) : null
             const endHourStr = t.endDate ? new Date(t.endDate).toTimeString().slice(0, 5) : null
 
@@ -364,6 +365,7 @@ function CreateEventContent() {
                 hour_start: startHourStr,
                 end_hour: endHourStr,
                 type: t.type === 'courtesy' ? 'courtesy' : 'paid',
+                sort_order: index,
             }
         })
 
@@ -386,8 +388,13 @@ function CreateEventContent() {
       }
 
     } catch (error: unknown) {
-      console.error(error)
-      const message = error instanceof Error ? error.message : 'Error desconocido'
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error !== null && 'message' in error
+            ? String((error as Record<string, unknown>).message)
+            : 'Error desconocido'
+      console.error('[handlePublish]', message, error)
       toast.error("Error al guardar: " + message)
     } finally {
       setLoading(false)
@@ -470,7 +477,7 @@ function CreateEventContent() {
       </aside>
 
       {/* ZONA DE PREVISUALIZACIÓN CENTRAL */}
-      <main className="flex-1 relative flex items-center justify-center bg-black">
+      <main className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-900/50 via-[#050505] to-black"></div>
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:32px_32px]"></div>
         
@@ -524,7 +531,12 @@ function CreateEventContent() {
                         {loading ? <Loader2 className="animate-spin" size={14}/> : <CheckCircle2 size={14}/>} Guardar Cambios
                     </button>
                     <button 
-                        onClick={() => { setIsDirty(false); isDirtyRef.current = false; router.push('/events'); }} 
+                        onClick={() => {
+                            if (initialDataRef.current) {
+                                useEventStore.setState((state) => ({ ...state, eventData: JSON.parse(initialDataRef.current!) }));
+                            }
+                            setIsDirty(false); isDirtyRef.current = false; router.push('/events');
+                        }}
                         className="w-full py-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition-all uppercase tracking-widest"
                     >
                         Salir y perder cambios
