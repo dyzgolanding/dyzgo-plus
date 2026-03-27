@@ -1,44 +1,23 @@
 'use client'
 
-import { useState, useRef, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { ArrowRight, Lock, Mail, Sparkles, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react'
-import HCaptcha from '@hcaptcha/react-hcaptcha'
 import { login } from './actions'
 
 // 1. Separamos la lógica del formulario en un componente interno
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const captchaRef = useRef<HCaptcha>(null)
-  const captchaResolveRef = useRef<((token: string) => void) | null>(null)
 
   const searchParams = useSearchParams()
   const errorMsg = searchParams.get('error')
 
-  const getCaptchaToken = (): Promise<string> => {
-    return new Promise((resolve) => {
-      captchaResolveRef.current = resolve
-      captchaRef.current?.execute()
-    })
-  }
-
-  const handleCaptchaVerify = (token: string) => {
-    captchaResolveRef.current?.(token)
-    captchaResolveRef.current = null
-  }
-
   const handleSubmit = async (formData: FormData) => {
     setLoading(true)
-    try {
-      const token = await getCaptchaToken()
-      formData.append('captchaToken', token)
-      await login(formData)
-    } finally {
-      setLoading(false)
-      captchaRef.current?.resetCaptcha()
-    }
+    await login(formData)
+    setLoading(false)
   }
 
   return (
@@ -119,13 +98,6 @@ function LoginForm() {
                             </button>
                         </div>
                     </div>
-
-                    <HCaptcha
-                        ref={captchaRef}
-                        sitekey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY!}
-                        size="invisible"
-                        onVerify={handleCaptchaVerify}
-                    />
 
                     <button
                         type="submit"

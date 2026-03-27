@@ -11,7 +11,7 @@ export async function login(formData: FormData) {
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
       cookies: {
         getAll() {
@@ -36,12 +36,9 @@ export async function login(formData: FormData) {
   const password = formData.get('password')?.toString() || ''
 
   // 1. Iniciar Sesión
-  const captchaToken = formData.get('captchaToken')?.toString()
-
   const { data: { user }, error } = await supabase.auth.signInWithPassword({
     email,
     password,
-    options: captchaToken ? { captchaToken } : undefined,
   })
 
   if (error) {
