@@ -39,9 +39,10 @@ export async function middleware(request: NextRequest) {
 
   const isLoginPage = path === '/login'
   const isAuthCallback = path === '/auth/callback'
-  
+  const isPublicPage = path === '/privacy' || path === '/terms'
+
   // Definimos qué rutas requieren estar logueado (Casi todas excepto login)
-  const isProtectedRoute = !isLoginPage && !isAuthCallback
+  const isProtectedRoute = !isLoginPage && !isAuthCallback && !isPublicPage
 
   // --- LÓGICA DE REDIRECCIÓN ---
 

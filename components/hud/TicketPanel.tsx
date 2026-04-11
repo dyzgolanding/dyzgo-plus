@@ -1,4 +1,5 @@
 'use client'
+import { toast } from 'sonner'
 import { useState, forwardRef, useEffect } from 'react' 
 import { 
   Plus, Trash2, UserCheck, 
@@ -111,7 +112,20 @@ interface CustomInputProps {
 }
 
 // Estado inicial para el formulario
-const INITIAL_TICKET_STATE = {
+const INITIAL_TICKET_STATE: {
+  name: string
+  price: string | number
+  quantity: string | number
+  description: string
+  startDate: string
+  endDate: string
+  isGhostSoldOut: boolean
+  isActive: boolean
+  isNominative: boolean
+  type: 'paid' | 'courtesy'
+  color: string
+  ticketsIncluded: string | number
+} = {
   name: '', 
   price: 0, 
   quantity: 0, 
@@ -121,9 +135,9 @@ const INITIAL_TICKET_STATE = {
   isGhostSoldOut: false, 
   isActive: true, 
   isNominative: false, 
-  type: 'paid' as const, 
+  type: 'paid',
   color: 'purple',
-  ticketsIncluded: 1 as string | number 
+  ticketsIncluded: 1
 }
 
 const datePickerStyles = `
@@ -297,7 +311,7 @@ export default function TicketPanel() {
     const finalTicketsIncluded = Number(newTicketForm.ticketsIncluded);
     
     if (newTicketForm.type === 'paid' && finalTicketsIncluded < 1) {
-        alert("No se pueden mandar 0 entradas por compra.");
+        toast.error('No se pueden mandar 0 entradas por compra.')
         return;
     }
 
@@ -430,13 +444,13 @@ export default function TicketPanel() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-2">
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Inicio</label>
-                                    <DatePicker selected={parseDate(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                    <DatePicker selected={parseTime(newTicketForm.startDate)} onChange={(d) => handleNewTicketDate('start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
+                                    <DatePicker selected={parseDate(newTicketForm.startDate)} onChange={(d: Date | null) => handleNewTicketDate('start', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
+                                    <DatePicker selected={parseTime(newTicketForm.startDate)} onChange={(d: Date | null) => handleNewTicketDate('start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Fin</label>
-                                    <DatePicker selected={parseDate(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                    <DatePicker selected={parseTime(newTicketForm.endDate)} onChange={(d) => handleNewTicketDate('end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
+                                    <DatePicker selected={parseDate(newTicketForm.endDate)} onChange={(d: Date | null) => handleNewTicketDate('end', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
+                                    <DatePicker selected={parseTime(newTicketForm.endDate)} onChange={(d: Date | null) => handleNewTicketDate('end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                 </div>
                             </div>
 
@@ -621,13 +635,13 @@ export default function TicketPanel() {
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Inicio</label>
-                                                    <DatePicker selected={parseDate(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                                    <DatePicker selected={parseTime(t.startDate)} onChange={(d) => handleUpdateDateTime(t.id, 'start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
+                                                    <DatePicker selected={parseDate(t.startDate)} onChange={(d: Date | null) => handleUpdateDateTime(t.id, 'start', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
+                                                    <DatePicker selected={parseTime(t.startDate)} onChange={(d: Date | null) => handleUpdateDateTime(t.id, 'start', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] text-zinc-500 font-bold uppercase flex items-center gap-1"><Calendar size={10}/> Fecha Fin</label>
-                                                    <DatePicker selected={parseDate(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
-                                                    <DatePicker selected={parseTime(t.endDate)} onChange={(d) => handleUpdateDateTime(t.id, 'end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
+                                                    <DatePicker selected={parseDate(t.endDate)} onChange={(d: Date | null) => handleUpdateDateTime(t.id, 'end', d, 'date')} dateFormat="dd/MM/yyyy" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Fecha" icon={<Calendar size={14}/>} />} locale="es" />
+                                                    <DatePicker selected={parseTime(t.endDate)} onChange={(d: Date | null) => handleUpdateDateTime(t.id, 'end', d, 'time')} showTimeSelect showTimeSelectOnly timeIntervals={30} timeCaption="Hora" dateFormat="HH:mm" timeFormat="HH:mm" popperPlacement="top-start" popperProps={{ strategy: 'fixed' }} customInput={<CustomInput placeholder="Seleccionar Hora" icon={<Clock size={14}/>} isTime />} locale="es" />
                                                 </div>
                                             </div>
 

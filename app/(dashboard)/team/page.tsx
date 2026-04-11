@@ -158,16 +158,24 @@ export default function BlacklistPage() {
   }
 
   const handleDelete = async (id: string) => { 
-      if(!confirm("¿Eliminar este registro permanentemente?")) return; 
-      try { 
-          setCases(cases.filter(c => c.id !== id)); 
-          const { error } = await supabase.from('blacklist').delete().eq('id', id); 
-          if (error) throw error 
-      } catch (error) { 
-          console.error(error);
-          toast.error("No se pudo eliminar"); 
-          fetchBlacklist() 
-      } 
+      toast.warning('¿Eliminar este registro permanentemente?', {
+        action: {
+          label: 'Eliminar',
+          onClick: async () => {
+            try { 
+                setCases(cases.filter(c => c.id !== id)); 
+                const { error } = await supabase.from('blacklist').delete().eq('id', id); 
+                if (error) throw error
+                toast.success('Registro eliminado.')
+            } catch (error) { 
+                console.error(error);
+                toast.error("No se pudo eliminar"); 
+                fetchBlacklist() 
+            }
+          }
+        },
+        cancel: { label: 'Cancelar', onClick: () => {} }
+      })
   }
 
   return (

@@ -122,8 +122,7 @@ function CreateEventContent() {
         }
 
         const loadedState = {
-            ...eventData, 
-            id: event.id,
+            ...initialEventData,  // base limpia — evita datos stale de evento previo
             name: event.title || '',
             venue: event.club_name || '',
             address: event.location || '',
@@ -143,7 +142,7 @@ function CreateEventContent() {
             minAgeMen: event.min_age_men || 0,
             minAgeWomen: event.min_age_women || 0,
             prohibitedItems: event.prohibited_items || [],
-            socialLinks: { instagram: event.instagram_url || '' },
+            socialLinks: { instagram: event.instagram_url || '', tiktok: '', website: '' },
             status: event.status || 'draft', 
             
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -204,20 +203,17 @@ function CreateEventContent() {
   }, [isDirty]);
 
   useEffect(() => {
-    window.history.pushState(null, '', window.location.href);
-
     const handlePopState = () => {
         if (isDirtyRef.current) {
-            window.history.pushState(null, '', window.location.href);
+            // No manipulamos window.history directamente (conflicto con Next.js router)
             setShowUnsavedModal(true);
         } else {
-            window.history.back();
+            router.back();
         }
     };
-
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [router]);
 
   const handleBackNavigation = () => {
       if (isDirty) {
@@ -251,8 +247,7 @@ function CreateEventContent() {
 
       let finalImageUrl = eventData.coverImage
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const fileToUpload = (useEventStore.getState() as any).tempFile 
+      const fileToUpload = useEventStore.getState().tempFile 
 
       if (fileToUpload) {
         const fileExt = fileToUpload.name.split('.').pop()
@@ -277,9 +272,8 @@ function CreateEventContent() {
           }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const storeStatus = (useEventStore.getState() as any).eventData?.status
-      const finalStatus = storeStatus === 'info' ? 'info' : (eventData.settings?.isPrivate ? 'draft' : 'active')
+      // El status final viene del estado del store (controlado por SettingsPanel)
+      const finalStatus = eventData.status || 'draft'
 
       const eventPayload = {
         organizer_id: user.id, 

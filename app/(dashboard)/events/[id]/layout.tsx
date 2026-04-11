@@ -3,7 +3,7 @@
 import React, { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, Settings, Users, BarChart3, Share2, Edit3, Loader2, Gift, IdCard, ShieldX } from 'lucide-react'
+import { ArrowLeft, Settings, Users, BarChart3, Share2, Edit3, Loader2, Gift, IdCard, ShieldX, Wine } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 interface EventData {
@@ -101,6 +101,7 @@ export default function EventLayout({ children, params }: { children: React.Reac
          <EventTab href={`/events/${eventId}/attendees`} active={pathname?.includes('/attendees') ?? false} label="Asistentes" icon={<Users size={14} />} />
          <EventTab href={`/events/${eventId}/rrpp`} active={pathname?.includes('/rrpp') ?? false} label="RRPP" icon={<Gift size={14} />} />
          <EventTab href={`/events/${eventId}/staff`} active={pathname?.includes('/staff') ?? false} label="Staff" icon={<IdCard size={14} />} />
+         <EventTab href={`/events/${eventId}/consumos`} active={pathname?.includes('/consumos') ?? false} label="Consumos" icon={<Wine size={14} />} />
          <EventTab href={`/events/${eventId}/settings`} active={pathname?.includes('/settings') ?? false} label="Ajustes" icon={<Settings size={14} />} />
       </div>
 

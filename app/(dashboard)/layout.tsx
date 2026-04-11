@@ -36,13 +36,7 @@ interface SidebarLinkProps {
   active: boolean
 }
 
-// ESTILOS GLOBALES DE SCROLLBAR
-const customScrollbar = `
-  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 10px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
-`
+
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -103,7 +97,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-[#030005] text-white font-sans selection:bg-purple-500/30 overflow-hidden">
-      <style>{customScrollbar}</style>
 
       {/* --- FONDO GLOBAL (Cubre todo el layout, detrás del sidebar y contenido) --- */}
       <div className="absolute inset-0 z-0 pointer-events-none w-full h-full overflow-hidden">

@@ -62,6 +62,7 @@ export interface EventData {
   accentColor: string
   borderRadius: string
   fontStyle: string
+  status?: string
   socialLinks: { instagram: string; tiktok: string; website: string }
   tickets: Ticket[]
   uploaded_dbs: UploadedDB[]
@@ -140,6 +141,7 @@ export const initialEventData: EventData = {
 interface EventState {
   eventData: EventData
   activeSection: 'info' | 'tickets' | 'design' | 'settings' | 'experience'
+  tempFile?: File | null
 
   setEventName: (name: string) => void
   setEventVenue: (venue: string) => void

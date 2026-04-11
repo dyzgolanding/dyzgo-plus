@@ -126,30 +126,7 @@ const CHILE_DATA = [
     }
 ]
 
-const datePickerStyles = `
-  .react-datepicker-wrapper { width: 100%; }
-  .react-datepicker-popper { z-index: 9999 !important; }
-  .react-datepicker {
-    font-family: inherit; background-color: #18181b; border: 1px solid #27272a; color: white; border-radius: 0.75rem;
-    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-  }
-  .react-datepicker__header { background-color: #18181b; border-bottom: 1px solid #27272a; border-top-left-radius: 0.75rem; border-top-right-radius: 0.75rem; }
-  .react-datepicker__current-month, .react-datepicker-time__header, .react-datepicker__day-name { color: white !important; font-weight: 700; }
-  .react-datepicker__day { color: #a1a1aa; }
-  .react-datepicker__day:hover { background-color: #27272a; color: white; border-radius: 0.375rem; }
-  .react-datepicker__day--selected, .react-datepicker__day--keyboard-selected { background-color: #9333ea !important; color: white !important; font-weight: bold; }
-  .react-datepicker__time-container { border-left: 1px solid #27272a; width: 100px !important; }
-  .react-datepicker__time-container .react-datepicker__time { background-color: #18181b; border-radius: 0.75rem; }
-  .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item { color: #a1a1aa; height: auto; padding: 8px; }
-  .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item:hover { background-color: #27272a; color: white; }
-  .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list li.react-datepicker__time-list-item--selected { background-color: #9333ea !important; color: white !important; }
-  .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list::-webkit-scrollbar { display: none; }
-  .react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box ul.react-datepicker__time-list { -ms-overflow-style: none; scrollbar-width: none; }
-  
-  .custom-scrollbar-select::-webkit-scrollbar { width: 5px; }
-  .custom-scrollbar-select::-webkit-scrollbar-track { background: #18181b; border-radius: 10px; }
-  .custom-scrollbar-select::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
-`
+
 
 // --- NUEVO COMPONENTE CUSTOM SELECT ---
 function CustomSelect({ 
@@ -311,6 +288,8 @@ export default function GeneralPanel() {
     return regionData ? [...regionData.comunas].sort((a, b) => a.localeCompare(b, 'es')) : []
   }, [eventData.region])
 
+  const lastComposedAddress = useRef('')
+
   useEffect(() => {
     const parts = [
         `${eventData.street || ''} ${eventData.number || ''}`.trim(),
@@ -320,10 +299,13 @@ export default function GeneralPanel() {
 
     const fullAddress = parts.join(', ')
     
-    if (fullAddress !== eventData.address) {
+    // Solo llamamos setEventAddress si la dirección compuesta cambió realmente
+    if (fullAddress !== lastComposedAddress.current) {
+        lastComposedAddress.current = fullAddress
         setEventAddress(fullAddress)
     }
-  }, [eventData.street, eventData.number, eventData.commune, eventData.region, setEventAddress, eventData.address])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventData.street, eventData.number, eventData.commune, eventData.region])
 
 
   const parseDate = (dateStr?: string) => {
@@ -381,7 +363,6 @@ export default function GeneralPanel() {
 
   return (
     <div className="space-y-6 animate-in slide-in-from-left duration-300">
-      <style>{datePickerStyles}</style>
       
       <div>
         <h2 className="text-xl font-bold text-white mb-1">Información Básica</h2>
@@ -460,7 +441,7 @@ export default function GeneralPanel() {
                 </label>
                 <DatePicker
                     selected={parseDate(eventData.date)}
-                    onChange={(date) => handleDateChange(date, 'start')}
+                    onChange={(date: Date | null) => handleDateChange(date, 'start')}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
                     placeholderText="Seleccionar"
@@ -476,7 +457,7 @@ export default function GeneralPanel() {
                 </label>
                 <DatePicker
                     selected={parseTime(eventData.startTime)}
-                    onChange={(date) => handleTimeChange(date, 'start')}
+                    onChange={(date: Date | null) => handleTimeChange(date, 'start')}
                     showTimeSelect
                     showTimeSelectOnly
                     timeIntervals={15}
@@ -496,7 +477,7 @@ export default function GeneralPanel() {
                 </label>
                 <DatePicker
                     selected={parseDate(eventData.endDate)}
-                    onChange={(date) => handleDateChange(date, 'end')}
+                    onChange={(date: Date | null) => handleDateChange(date, 'end')}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
                     minDate={parseDate(eventData.date) || new Date()}
@@ -513,7 +494,7 @@ export default function GeneralPanel() {
                 </label>
                 <DatePicker
                     selected={parseTime(eventData.endTime)}
-                    onChange={(date) => handleTimeChange(date, 'end')}
+                    onChange={(date: Date | null) => handleTimeChange(date, 'end')}
                     showTimeSelect
                     showTimeSelectOnly
                     timeIntervals={15}

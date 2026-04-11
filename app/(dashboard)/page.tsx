@@ -12,24 +12,7 @@ import { useOrg } from '@/components/providers/org-provider'
 import { differenceInDays, differenceInHours, formatDistanceToNow, subHours } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-// ESTILOS PARA SCROLLBAR PERSONALIZADO
-const customScrollbar = `
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 10px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
-  }
-`
+
 
 // --- INTERFACES PARA TIPADO ESTRICTO ---
 interface GlobalStats {
@@ -158,11 +141,34 @@ export default function GeneralDashboard() {
             const totalRevenue = ticketsData.reduce((sum, t) => sum + resolvePrice(t), 0)
             const now = new Date()
 
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+            const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+
+            // Ventas del mes actual vs mes anterior (solo tickets válidos/usados)
+            const validTickets = ticketsData.filter(t => t.status === 'valid' || t.status === 'used')
+            const salesThisMonth = validTickets
+                .filter(t => new Date(t.created_at) >= startOfMonth)
+                .reduce((sum, t) => sum + resolvePrice(t), 0)
+            const salesLastMonth = validTickets
+                .filter(t => new Date(t.created_at) >= startOfLastMonth && new Date(t.created_at) < startOfMonth)
+                .reduce((sum, t) => sum + resolvePrice(t), 0)
+
+            const trend = salesLastMonth > 0
+                ? Math.round(((salesThisMonth - salesLastMonth) / salesLastMonth) * 100)
+                : salesThisMonth > 0 ? 100 : 0
+
+            // Tickets pending = reservados pero no confirmados aún (pueden convertirse en ventas)
+            const pendingRevenue = ticketsData
+                .filter(t => t.status === 'pending')
+                .reduce((sum, t) => sum + resolvePrice(t), 0)
+
             setGlobalStats(prev => ({
                 ...prev,
                 balanceAvailable: totalRevenue,
+                balancePending: pendingRevenue,
+                totalSalesMonth: salesThisMonth,
+                salesTrend: trend,
                 activeEventsCount: eventsData.filter(e => e.status === 'active').length,
-                salesTrend: 12,
             }))
 
             const upcoming = eventsData.filter(e => {
@@ -283,8 +289,8 @@ export default function GeneralDashboard() {
   return (
     // CONTENEDOR LIMPIO (Sin fondo, ya está en el Layout)
     <div className="relative z-10 max-w-[1600px] mx-auto space-y-6 pt-2">
-      <style>{customScrollbar}</style>
       
+
       {/* 1. HEADER */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pt-2">
           <div>

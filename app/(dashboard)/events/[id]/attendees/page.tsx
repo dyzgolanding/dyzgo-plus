@@ -1,20 +1,25 @@
 'use client'
 
 import React, { use, useEffect, useState } from 'react'
-// Se eliminó 'Filter' de las importaciones porque no se usaba
 import { Search, Download, UserCheck, Mail, RefreshCw, Loader2, MoreHorizontal, CheckCircle, XCircle, Send, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { resendTicketEmail } from '@/app/actions/resend-ticket-email'
 
 // Definimos interfaces para evitar el error "no-explicit-any" que bloquea Vercel
 interface Attendee {
   id: string
   created_at: string
   used: boolean
+  // Campos necesarios para el reenvío de email (mismos que usa send-ticket-email)
+  user_id?: string
+  qr_hash?: string
+  status?: string
+  // Campos opcionales para invitados
   guest_name?: string
   guest_email?: string
   tier_id?: string
-  ticket_type?: string // En caso de que exista en tu DB
+  ticket_type?: string
   profiles?: {
     full_name: string
     email: string
@@ -32,8 +37,11 @@ interface AttendeeRowProps {
   ticket: string
   status: string
   date: string
+  ticketStatus?: string   // status real del ticket en DB (para validar si puede reenviarse)
   onRefresh: () => void
 }
+
+const PAGE_SIZE = 50
 
 export default function AttendeesPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params)
@@ -42,27 +50,56 @@ export default function AttendeesPage({ params }: { params: Promise<{ id: string
   const [attendees, setAttendees] = useState<Attendee[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [page, setPage] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
 
-  // Función para cargar asistentes reales
-  const fetchAttendees = async () => {
+  // Carga real con paginación server-side
+  const fetchAttendees = async (currentPage = 0) => {
     setLoading(true)
-    const { data, error } = await supabase
+    const from = currentPage * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+
+    const { data, error, count } = await supabase
       .from('tickets')
-      .select('*, ticket_tiers(name), profiles(full_name, email)') 
+      .select('*, ticket_tiers(name), profiles(full_name, email)', { count: 'exact' })
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
+      .range(from, to)
 
-    if (data) setAttendees(data as unknown as Attendee[]) // Casting seguro para Supabase join
+    if (data) setAttendees(data as unknown as Attendee[])
     if (error) console.error("Error cargando asistentes:", error)
+    setTotalCount(count ?? 0)
     setLoading(false)
   }
 
   useEffect(() => {
-    fetchAttendees()
+    fetchAttendees(page)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId]) // Ignoramos advertencia de fetchAttendees para no reescribir toda la lógica
+  }, [eventId, page])
 
-  // Filtro de búsqueda local
+  // Exportar CSV real
+  const handleExport = () => {
+    if (attendees.length === 0) return toast.info('No hay asistentes para exportar.')
+    const headers = 'Nombre,Email,Tipo de Ticket,Estado,Fecha'
+    const rows = attendees.map(a => {
+      const name = a.profiles?.full_name || a.guest_name || 'Sin Nombre'
+      const email = a.profiles?.email || a.guest_email || 'Sin Email'
+      const ticket = a.ticket_tiers?.name || 'General'
+      const status = a.used ? 'Ingresado' : 'Pendiente'
+      const date = new Date(a.created_at).toLocaleDateString('es-CL')
+      return `"${name}","${email}","${ticket}","${status}","${date}"`
+    })
+    const csv = [headers, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `asistentes_${eventId}_${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
+  // Filtro de búsqueda local (sobre la página actual)
   const filteredAttendees = attendees.filter(a => {
     const nameToCheck = a.profiles?.full_name || a.guest_name || ''
     const emailToCheck = a.profiles?.email || a.guest_email || ''
@@ -74,6 +111,8 @@ export default function AttendeesPage({ params }: { params: Promise<{ id: string
         idToCheck.toLowerCase().includes(searchTerm.toLowerCase())
     )
   })
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
   return (
     // CONTENEDOR LIMPIO
@@ -103,15 +142,18 @@ export default function AttendeesPage({ params }: { params: Promise<{ id: string
                 </div>
                 
                 <button 
-                    onClick={fetchAttendees}
+                    onClick={() => fetchAttendees(page)}
                     className="h-12 w-12 flex items-center justify-center bg-white/5 border border-white/10 rounded-2xl text-white/60 hover:text-white hover:bg-white/10 transition-all hover:scale-105"
                     title="Sincronizar"
                 >
                     <RefreshCw className={loading ? 'animate-spin' : ''} size={18} />
                 </button>
                 
-                <button className="h-12 px-6 bg-white text-black font-bold rounded-2xl text-xs uppercase tracking-wider flex items-center gap-2 hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.15)]">
-                    <Download size={16} /> Exportar
+                <button 
+                    onClick={handleExport}
+                    className="h-12 px-6 bg-white text-black font-bold rounded-2xl text-xs uppercase tracking-wider flex items-center gap-2 hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+                >
+                    <Download size={16} /> Exportar ({totalCount})
                 </button>
             </div>
         </div>
@@ -157,6 +199,7 @@ export default function AttendeesPage({ params }: { params: Promise<{ id: string
                                 email={finalEmail} 
                                 ticket={item.ticket_type || item.ticket_tiers?.name || 'General'} 
                                 status={status}
+                                ticketStatus={item.status}  
                                 date={new Date(item.created_at).toLocaleDateString()}
                                 onRefresh={fetchAttendees} 
                             />
@@ -167,30 +210,59 @@ export default function AttendeesPage({ params }: { params: Promise<{ id: string
         </div>
 
         {/* FOOTER PAGINACIÓN */}
-        <div className="flex justify-between items-center px-4 pt-2">
-            <span className="text-xs font-medium text-white/40">Mostrando {filteredAttendees.length} registros</span>
-            <div className="flex gap-2">
-                <button className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all disabled:opacity-50">Anterior</button>
-                <button className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all disabled:opacity-50">Siguiente</button>
+        {totalCount > PAGE_SIZE && (
+            <div className="flex justify-between items-center px-4 pt-2">
+                <span className="text-xs font-medium text-white/40">
+                    Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount} asistentes
+                </span>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => setPage(p => Math.max(0, p - 1))}
+                        disabled={page === 0 || loading}
+                        className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                        Anterior
+                    </button>
+                    <span className="px-3 py-2 text-xs text-white/40 font-medium">
+                        {page + 1} / {totalPages}
+                    </span>
+                    <button 
+                        onClick={() => setPage(p => p + 1)}
+                        disabled={page + 1 >= totalPages || loading}
+                        className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-xs font-bold text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                        Siguiente
+                    </button>
+                </div>
             </div>
-        </div>
+        )}
 
     </div>
   )
 }
 
 // Se tiparon las props para evitar errores de TS
-function AttendeeRow({ id, tierId, name, email, ticket, status, date, onRefresh }: AttendeeRowProps) {
+function AttendeeRow({ id, tierId, name, email, ticket, status, date, ticketStatus, onRefresh }: AttendeeRowProps) {
     const [showMenu, setShowMenu] = useState(false)
     const [processing, setProcessing] = useState(false)
 
-    // 1. Reenviar Ticket
+    // 1. Reenviar Ticket — llama a la misma Edge Function que usa webpay al confirmar el pago
     const handleResend = async () => {
+        if (ticketStatus !== 'valid') {
+            toast.warning('Solo se puede reenviar el correo de tickets confirmados.')
+            setShowMenu(false)
+            return
+        }
         setProcessing(true)
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        toast.success(`Ticket reenviado a ${email}`)
-        setProcessing(false)
         setShowMenu(false)
+        const toastId = toast.loading(`Reenviando ticket a ${email}...`)
+        const result = await resendTicketEmail(id)
+        if (result.success) {
+            toast.success(`Ticket reenviado a ${email}`, { id: toastId })
+        } else {
+            toast.error(result.error || 'Error al reenviar el ticket', { id: toastId })
+        }
+        setProcessing(false)
     }
 
     // 2. Validar Ticket
@@ -208,13 +280,20 @@ function AttendeeRow({ id, tierId, name, email, ticket, status, date, onRefresh 
 
     // 3. Anular Ticket
     const handleVoid = async () => {
-        if(!confirm("¿Estás seguro de anular este ticket? Se eliminará y devolverá el stock.")) return;
-        setProcessing(true)
-        const { error } = await supabase.rpc('void_ticket', { ticket_id_input: id })
-        if (error) toast.error("Error: " + error.message)
-        else onRefresh()
-        setProcessing(false)
-        setShowMenu(false)
+        toast.warning('¿Anular este ticket? Se eliminará y devolverá el stock.', {
+            action: {
+                label: 'Anular',
+                onClick: async () => {
+                    setProcessing(true)
+                    const { error } = await supabase.rpc('void_ticket', { ticket_id_input: id })
+                    if (error) toast.error("Error: " + error.message)
+                    else { toast.success('Ticket anulado.'); onRefresh() }
+                    setProcessing(false)
+                    setShowMenu(false)
+                }
+            },
+            cancel: { label: 'Cancelar', onClick: () => {} }
+        })
     }
 
     return (

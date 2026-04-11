@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 // --- INTERFACES PARA TIPADO ESTRICTO ---
 interface Organization {
@@ -184,29 +185,36 @@ export function OrgProvider({ children }: { children: React.ReactNode }) {
         
         // RECARGA CRÍTICA
         await fetchOrganizations() 
-        alert("¡Invitación aceptada! Ya puedes seleccionar la productora en el menú.")
+        toast.success('¡Invitación aceptada! Ya puedes seleccionar la productora en el menú.')
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'Error desconocido'
-        alert("Error al aceptar: " + msg)
+        toast.error('Error al aceptar: ' + msg)
     }
   }
 
   const rejectInvite = async (inviteId: string) => {
-    if(!confirm("¿Estás seguro de rechazar esta invitación?")) return
-    try {
-        const { error } = await supabase
-            .from('team_members')
-            .delete()
-            .eq('id', inviteId)
-        
-        if (error) throw error
-        
-        await fetchOrganizations()
-        alert("Invitación rechazada.")
-    } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : 'Error desconocido'
-        alert("Error al rechazar: " + msg)
-    }
+    toast.warning('¿Estás seguro de rechazar esta invitación?', {
+      action: {
+        label: 'Rechazar',
+        onClick: async () => {
+          try {
+              const { error } = await supabase
+                  .from('team_members')
+                  .delete()
+                  .eq('id', inviteId)
+              
+              if (error) throw error
+              
+              await fetchOrganizations()
+              toast.success('Invitación rechazada.')
+          } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : 'Error desconocido'
+              toast.error('Error al rechazar: ' + msg)
+          }
+        }
+      },
+      cancel: { label: 'Cancelar', onClick: () => {} }
+    })
   }
 
   return (

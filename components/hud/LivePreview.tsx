@@ -104,6 +104,12 @@ const getEndDay = (dateStr?: string) => {
 
 export default function LivePreview() {
   const { eventData, activeSection } = useEventStore() as unknown as StoreState
+  const [showMap, setShowMap] = useState(false)
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setShowMap(true), 1500)
+    return () => clearTimeout(timer)
+  }, [])
 
   const accent = eventData.accentColor || '#FF31D8'
   const radius = eventData.borderRadius || 'rounded-[2rem]'
@@ -355,13 +361,17 @@ export default function LivePreview() {
             <div className={`${glassCard} p-6`}>
               {/* Mapa */}
               <div className="w-full h-[160px] rounded-[32px] overflow-hidden border border-white/[0.08] mb-2.5 relative">
-                <iframe
-                  style={{ border: 0, filter: 'brightness(0.7) contrast(1.2)' }}
-                  loading="lazy"
-                  allowFullScreen
-                  src={mapUrl}
-                  className="absolute w-[calc(100%+100px)] h-[calc(100%+120px)] -top-[60px] -left-[50px] pointer-events-none max-w-none"
-                />
+                {showMap ? (
+                  <iframe
+                    style={{ border: 0, filter: 'brightness(0.7) contrast(1.2)' }}
+                    loading="lazy"
+                    allowFullScreen
+                    src={mapUrl}
+                    className="absolute w-[calc(100%+100px)] h-[calc(100%+120px)] -top-[60px] -left-[50px] pointer-events-none max-w-none"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-white/[0.02] animate-pulse" />
+                )}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none flex flex-col items-center justify-center drop-shadow-2xl">
                   <MapPin size={36} color="white" fill={accent} strokeWidth={1.5} />
                 </div>

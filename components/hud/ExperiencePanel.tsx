@@ -44,6 +44,11 @@ export default function ExperiencePanel() {
   }, [])
 
   const applyFormat = (command: string) => {
+    // Verificamos con Selection API que estamos dentro del editor
+    const selection = window.getSelection()
+    if (!selection || !selection.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return
+
+    // Mantenemos execCommand para el parse HTML complejo, pero protegido por Selection API bounds
     document.execCommand(command, false)
     if (editorRef.current) {
         editorRef.current.focus()

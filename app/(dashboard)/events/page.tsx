@@ -38,12 +38,24 @@ export default function EventsPage() {
       const from = page * PAGE_SIZE
       const to = from + PAGE_SIZE - 1
 
-      const { data, error, count } = await supabase
+      // Construir query base
+      let query = supabase
         .from('events')
         .select('*, ticket_tiers(total_stock, sold_tickets)', { count: 'exact' })
         .eq('experience_id', currentOrgId)
         .order('created_at', { ascending: false })
         .range(from, to)
+
+      // Filtro server-side por status.
+      // 'Finalizados' no se filtra en DB porque el campo puede no estar actualizado
+      // (expire_events() corre en backend); se calcula localmente sobre la respuesta.
+      if (activeTab === 'Activos') query = query.eq('status', 'active')
+      else if (activeTab === 'Borradores') query = query.eq('status', 'draft')
+
+      // Filtro por título (búsqueda)
+      if (searchTerm.trim()) query = query.ilike('title', `%${searchTerm.trim()}%`)
+
+      const { data, error, count } = await query
 
       if (data) {
         const now = new Date()
@@ -84,24 +96,19 @@ export default function EventsPage() {
       setLoading(false)
     }
     fetchEvents()
-  }, [currentOrgId, page])
+  }, [currentOrgId, page, activeTab, searchTerm])
 
   const handleCreateEvent = () => {
     resetEvent() 
     router.push('/events/create')
   }
 
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = event.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    if (!matchesSearch) return false
-    
-    if (activeTab === 'Todos') return true
-    if (activeTab === 'Finalizados') return event.status === 'ended'
-    if (activeTab === 'Activos') return event.status === 'active'
-    if (activeTab === 'Borradores') return event.status === 'draft'
-
-    return true
-  })
+  // El filtro server-side ya resuelve: búsqueda de texto (ilike) + Activos + Borradores.
+  // Solo necesitamos filtro local para 'Finalizados', que se calcula por fecha en el cliente
+  // (porque expire_events() puede no haberse ejecutado aún en la DB).
+  const filteredEvents = activeTab === 'Finalizados'
+    ? events.filter(event => event.status === 'ended')
+    : events
 
   if (loading) return (
     <div className="flex items-center justify-center h-full pt-40">
@@ -308,10 +315,10 @@ function EventCard({ id, title, date, location, image, status, sold, total, canE
 
     return (
         <div className="group bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] overflow-hidden hover:border-white/20 transition-all hover:scale-[1.01] shadow-xl shadow-purple-900/5 flex flex-col h-full">
-            <div className="h-40 w-full relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-t from-[#030005] via-transparent to-transparent z-10 opacity-90" />
+            <div className="aspect-square w-[calc(100%+2px)] -ml-[1px] -mb-px relative overflow-hidden transform-gpu bg-[#030005]">
+                <div className="absolute -inset-1 bg-gradient-to-t from-[#030005] via-transparent to-transparent z-10 opacity-90 border-0" />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={title} />
+                <img src={image} className="w-full h-full object-cover scale-[1.02] group-hover:scale-110 transition-transform duration-700" alt={title} />
                 <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border flex items-center gap-2 backdrop-blur-md z-20 transition-all ${currentStatus.style}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${currentStatus.dot} ${status === 'active' ? 'animate-pulse' : ''}`} />
                     {currentStatus.text}

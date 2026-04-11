@@ -217,8 +217,18 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
   }
 
   const removeGroup = async (idx: number) => {
-    if(!confirm("¿Eliminar?")) return; const updatedGroups = uploadedGroups.filter((_, i) => i !== idx);
-    const { error } = await supabase.from('events').update({ uploaded_dbs: updatedGroups }).eq('id', eventId); if(error) toast.error("Error"); else setUploadedGroups(updatedGroups)
+    toast.warning('¿Eliminar esta base de datos?', {
+      action: {
+        label: 'Eliminar',
+        onClick: async () => {
+          const updatedGroups = uploadedGroups.filter((_, i) => i !== idx)
+          const { error } = await supabase.from('events').update({ uploaded_dbs: updatedGroups }).eq('id', eventId)
+          if (error) toast.error('Error al eliminar')
+          else setUploadedGroups(updatedGroups)
+        }
+      },
+      cancel: { label: 'Cancelar', onClick: () => {} }
+    })
   }
 
   const addRecipient = () => setRecipients([...recipients, { email: '', nombre: '', apellido: '', rut: '', cantidad: 1 }])

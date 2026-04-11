@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { 
   DollarSign, Ticket, Activity, 
   Filter, QrCode, Users,
@@ -94,6 +94,7 @@ interface MetricsState {
   uniqueUsersList: any[]
   genderStats: ChartData[]
   ageStats: { range: string; count: number }[]
+  courtesyVsPaid: ChartData[]
 }
 
 // Paleta Neón Ajustada para Liquid Glass
@@ -135,7 +136,8 @@ export default function AnalyticsPage() {
     uniqueUsersGraph: [],
     uniqueUsersList: [],
     genderStats: [],
-    ageStats: []
+    ageStats: [],
+    courtesyVsPaid: []
   })
 
   const [rawTickets, setRawTickets] = useState<RawTicket[]>([])
@@ -172,41 +174,54 @@ export default function AnalyticsPage() {
           .select('id, name, price, total_stock, event_id')
           .in('event_id', targetEventIds)
 
-      let query = supabase
-        .from('tickets')
-        .select(`
-            id, paid_price, status, created_at, scanned_at,
-            tier_id, user_id, guest_email, guest_name,
-            profiles:user_id ( full_name, email, gender, birth_date, rut ), 
-            ticket_tiers ( id, name, price, total_stock ),
-            events ( id, date, title )
-        `)
-        .neq('status', 'refunded')
-        .order('created_at', { ascending: true })
-      
-      if (targetEventIds.length > 0) {
-        query = query.in('event_id', targetEventIds)
-      }
+      let allTickets: RawTicket[] = []
+      let hasMore = true
+      let pageOffset = 0
+      const PAGE_SIZE = 1000
 
-      if (timeRange !== 'all') {
-        const now = new Date()
-        let dateLimit = new Date()
-        switch (timeRange) {
-            case '24h': dateLimit = subHours(now, 24); break;
-            case '7d': dateLimit = subDays(now, 7); break;
-            case '30d': dateLimit = subDays(now, 30); break;
-            case '1y': dateLimit = subYears(now, 1); break;
+      while (hasMore) {
+        let query = supabase
+          .from('tickets')
+          .select(`
+              id, paid_price, status, created_at, scanned_at,
+              tier_id, user_id, guest_email, guest_name,
+              profiles:user_id ( full_name, email, gender, birth_date, rut ), 
+              ticket_tiers ( id, name, price, total_stock ),
+              events ( id, date, title )
+          `)
+          .neq('status', 'refunded')
+          .order('created_at', { ascending: true })
+        
+        if (targetEventIds.length > 0) {
+          query = query.in('event_id', targetEventIds)
         }
-        query = query.gte('created_at', dateLimit.toISOString())
+
+        if (timeRange !== 'all') {
+          const now = new Date()
+          let dateLimit = new Date()
+          switch (timeRange) {
+              case '24h': dateLimit = subHours(now, 24); break;
+              case '7d': dateLimit = subDays(now, 7); break;
+              case '30d': dateLimit = subDays(now, 30); break;
+              case '1y': dateLimit = subYears(now, 1); break;
+          }
+          query = query.gte('created_at', dateLimit.toISOString())
+        }
+
+        const { data: ticketsPage, error } = await query.range(pageOffset, pageOffset + PAGE_SIZE - 1)
+
+        if (error || !ticketsPage || ticketsPage.length === 0) {
+            hasMore = false
+        } else {
+            allTickets = [...allTickets, ...(ticketsPage as unknown as RawTicket[])]
+            if (ticketsPage.length < PAGE_SIZE) hasMore = false
+            else pageOffset += PAGE_SIZE
+        }
       }
 
-      const { data: tickets } = await query
-
-      if (tickets) {
-        // Casting seguro porque sabemos la estructura que pedimos
-        processAllMetrics(tickets as unknown as RawTicket[], eventsList || [], timeRange, allTiers || [])
-        setRawTickets(tickets as unknown as RawTicket[])
-      }
+      // Casting seguro porque sabemos la estructura que pedimos
+      processAllMetrics(allTickets, eventsList || [], timeRange, allTiers || [])
+      setRawTickets(allTickets)
     } catch (err) {
       console.error("Error fetch:", err)
     } finally {
@@ -216,17 +231,24 @@ export default function AnalyticsPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
     if (!currentOrgId) return
     const channel = supabase.channel('finance_realtime_v7')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-              setTimeout(() => setRefreshTrigger(prev => prev + 1), 1500) 
+              if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current)
+              refreshTimeoutRef.current = setTimeout(() => setRefreshTrigger(prev => prev + 1), 3000) 
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scans' }, () => {
-              setTimeout(() => setRefreshTrigger(prev => prev + 1), 1000)
+              if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current)
+              refreshTimeoutRef.current = setTimeout(() => setRefreshTrigger(prev => prev + 1), 2000)
       })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => { 
+        supabase.removeChannel(channel)
+        if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current)
+    }
   }, [currentOrgId])
 
   // 4. PROCESAMIENTO
@@ -256,12 +278,14 @@ export default function AnalyticsPage() {
     const hourlyScans = new Map<string, number>()
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const dateMap = new Map<string, number>() 
-    const usersMap = new Map<string, { name: string, email: string, rut: string, totalSpent: number, ticketsCount: number, lastDate: string }>()
+    const usersMap = new Map<string, { name: string, email: string, rut: string, totalSpent: number, ticketsCount: number, lastDate: string, countedAsRecurring: boolean }>()
     const userGrowthMap = new Map<string, number>()
     
     let maleCount = 0
     let femaleCount = 0
     let otherCount = 0
+    let courtesyCount = 0
+    let paidCount = 0
     const ageBuckets = { '18-24': 0, '25-34': 0, '35-44': 0, '45+': 0 }
     
     let cumulativeUsers = 0
@@ -279,7 +303,9 @@ export default function AnalyticsPage() {
         // --- LÓGICA ROBUSTA DE PRECIO ---
         let finalPrice = Number(t.paid_price)
 
-        if (!finalPrice || finalPrice === 0) {
+        // Solo se fuerza el precio estático si el ticket no tiene registro de paid_price (Ej. BD Legacy).
+        // Si el ticket es Cortesía (paid_price estrictamente 0), debe sumar $0 de ingreso real.
+        if (t.paid_price === null || t.paid_price === undefined) {
             finalPrice = Number(t.ticket_tiers?.price)
             if ((!finalPrice || finalPrice === 0) && mappedTier) {
                 finalPrice = mappedTier.staticPrice
@@ -287,6 +313,8 @@ export default function AnalyticsPage() {
         }
         
         revenue += finalPrice
+        if (finalPrice <= 0) courtesyCount++
+        else paidCount++
 
         const tDate = new Date(t.created_at)
         let dateKey = ''
@@ -321,19 +349,21 @@ export default function AnalyticsPage() {
 
         if (!usersMap.has(uniqueKey)) {
             cumulativeUsers++
-            usersMap.set(uniqueKey, { name: userName, email: userEmail, rut: userRut, totalSpent: 0, ticketsCount: 0, lastDate: t.created_at })
+            usersMap.set(uniqueKey, { name: userName, email: userEmail, rut: userRut, totalSpent: 0, ticketsCount: 0, lastDate: t.created_at, countedAsRecurring: false })
             userGrowthMap.set(dateKey, cumulativeUsers)
         } else {
-            const u = usersMap.get(uniqueKey)!
-            if (u.ticketsCount === 1) {
-              recurringUsers++ 
-            }
             if (!userGrowthMap.has(dateKey)) userGrowthMap.set(dateKey, cumulativeUsers)
             else userGrowthMap.set(dateKey, cumulativeUsers)
         }
         const user = usersMap.get(uniqueKey)!
         user.totalSpent += finalPrice
         user.ticketsCount += 1
+        // Se cuenta como recurrente si ya tenía al menos 1 ticket previo (ticketsCount >= 1 ANTES del incremento)
+        // Al ejecutar aquí, ticketsCount ya fue incrementado, por lo que >= 2 equivale a "segunda compra o más"
+        if (user.ticketsCount >= 2 && !user.countedAsRecurring) {
+            recurringUsers++
+            user.countedAsRecurring = true  // evitar contar el mismo usuario múltiples veces
+        }
         if (new Date(t.created_at) > new Date(user.lastDate)) user.lastDate = t.created_at
 
         if (t.profiles) {
@@ -386,8 +416,10 @@ export default function AnalyticsPage() {
     const totalStock = tiersArray.reduce((acc, t) => acc + t.stock, 0)
     const stockVsSold = [{ name: 'Vendidos', value: sold }, { name: 'Disponibles', value: Math.max(0, totalStock - sold) }]
 
+    const startHour = 18 // Eventos nocturnos fluyen de 18:00 a 17:00
     const entryTimeData = Array.from({length: 24}, (_, i) => {
-        const key = `${i}:00`
+        const h = (startHour + i) % 24
+        const key = `${h}:00`
         return { time: key, count: hourlyScans.get(key) || 0 }
     })
 
@@ -410,6 +442,11 @@ export default function AnalyticsPage() {
         { range: '45+', count: ageBuckets['45+'] },
     ]
 
+    const courtesyVsPaid = [
+        { name: 'Pagado', value: paidCount, color: '#00D15B' },
+        { name: 'Cortesía', value: courtesyCount, color: '#eab308' }
+    ]
+
     setMetrics({
         totalRevenue: revenue,
         revenueGoal: potentialRev > 0 ? potentialRev : revenue * 1.5,
@@ -430,7 +467,8 @@ export default function AnalyticsPage() {
         uniqueUsersGraph,
         uniqueUsersList: Array.from(usersMap.values()).sort((a, b) => b.totalSpent - a.totalSpent),
         genderStats: finalGenderStats,
-        ageStats: finalAgeStats
+        ageStats: finalAgeStats,
+        courtesyVsPaid
     })
   }
 
@@ -449,7 +487,12 @@ export default function AnalyticsPage() {
     const headers = 'ID,Precio,Fecha,Estado,Tipo de ticket,Nombre del evento,Email,RUT'
     const rows = rawTickets.map(t => {
       const id = t.id
-      const precio = t.ticket_tiers?.price || 0
+      
+      let precio = Number(t.paid_price)
+      if (t.paid_price === null || t.paid_price === undefined) {
+          precio = Number(t.ticket_tiers?.price || 0)
+      }
+
       const fecha = format(new Date(t.created_at), 'dd/MM/yyyy HH:mm')
       const estado = t.status
       const tipoTicket = t.ticket_tiers?.name || 'General'
@@ -472,8 +515,18 @@ export default function AnalyticsPage() {
 
   return (
     // CONTENEDOR LIMPIO - SIN FONDO (YA ESTÁ EN EL LAYOUT)
-    <div className="max-w-[1600px] mx-auto space-y-12 animate-in fade-in pt-2">
+    <div className={`max-w-[1600px] mx-auto space-y-12 animate-in fade-in pt-2 transition-all duration-500 relative ${loading && rawTickets.length === 0 ? 'opacity-0' : 'opacity-100'}`}>
       
+        {/* SKELETON REFRESH OVERLAY */}
+        {loading && rawTickets.length > 0 && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#030005]/40 backdrop-blur-sm pointer-events-none rounded-[2rem]">
+                 <div className="bg-[#030005] p-5 rounded-2xl border border-white/10 shadow-2xl flex flex-col items-center gap-3">
+                     <RefreshCw size={24} className="text-[#8A2BE2] animate-spin" />
+                     <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest block">Sincronizando</span>
+                 </div>
+            </div>
+        )}
+
         {/* HEADER */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 border-b border-white/5 pb-6">
             <div>
@@ -535,9 +588,9 @@ export default function AnalyticsPage() {
                 description="Cálculo de ocupación (Tickets Vendidos / Stock Total) y desglose de ingresos por tipo de ticket."
             />
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Ocupación */}
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 flex flex-col justify-between shadow-2xl shadow-purple-900/10 relative overflow-hidden">
+                <div className="lg:col-span-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 flex flex-col justify-between shadow-2xl shadow-purple-900/10 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-[#8A2BE2]/20 rounded-full blur-[60px] pointer-events-none"/>
                     <div>
                         <h3 className="text-sm font-bold text-white flex items-center gap-3 mb-2 uppercase tracking-widest"><Ticket size={16} className="text-[#8A2BE2]"/> Ocupación</h3>
@@ -566,9 +619,38 @@ export default function AnalyticsPage() {
                         }
                     />
                 </div>
+
+                {/* Cortesías vs Pagos */}
+                <div className="lg:col-span-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 flex flex-col justify-between shadow-2xl shadow-purple-900/10 relative overflow-hidden">
+                    <div>
+                        <h3 className="text-sm font-bold text-white flex items-center gap-3 mb-2 uppercase tracking-widest"><DollarSign size={16} className="text-[#eab308]"/> Pago vs Cortesía</h3>
+                    </div>
+                    
+                    <div className="h-[280px] w-full relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={metrics.courtesyVsPaid} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value" stroke="none">
+                                    {metrics.courtesyVsPaid.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{backgroundColor: '#000000cc', border: '1px solid #ffffff20', borderRadius: '12px', backdropFilter: 'blur(10px)'}} itemStyle={{color: '#fff'}}/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest mb-1 mt-6">Cortesías</span>
+                            <span className="text-3xl font-black text-[#eab308]">{((metrics.courtesyVsPaid.find(x => x.name === 'Cortesía')?.value || 0) / (metrics.ticketsSold || 1) * 100).toFixed(0)}%</span>
+                        </div>
+                    </div>
+
+                    <InsightBox 
+                        type="info"
+                        text="Registra tu ratio de boletos gratuitos frente a boletos pagados reales para prever costos operativos."
+                    />
+                </div>
                 
                 {/* Mix de Ventas */}
-                <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 flex flex-col shadow-2xl shadow-purple-900/10">
+                <div className="lg:col-span-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 flex flex-col shadow-2xl shadow-purple-900/10 h-full">
                     <div>
                         <h3 className="text-sm font-bold text-white flex items-center gap-3 mb-2 uppercase tracking-widest"><PieIcon size={16} className="text-[#06b6d4]"/> Mix de Ventas</h3>
                     </div>
@@ -580,7 +662,7 @@ export default function AnalyticsPage() {
                                   <Pie data={metrics.salesByTier} cx="50%" cy="50%" outerRadius={110} innerRadius={70} dataKey="revenue" stroke="none" paddingAngle={2}>
                                       {metrics.salesByTier.map((e, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                                   </Pie>
-                                  <Tooltip formatter={(value: number) => `$${value.toLocaleString()}`} contentStyle={{backgroundColor: '#000000cc', border: '1px solid #ffffff20', borderRadius: '12px', backdropFilter: 'blur(10px)'}} itemStyle={{color:'#fff'}}/>
+                                  <Tooltip formatter={(value: number | undefined) => `$${(value || 0).toLocaleString()}`} contentStyle={{backgroundColor: '#000000cc', border: '1px solid #ffffff20', borderRadius: '12px', backdropFilter: 'blur(10px)'}} itemStyle={{color:'#fff'}}/>
                               </PieChart>
                           </ResponsiveContainer>
                         </div>

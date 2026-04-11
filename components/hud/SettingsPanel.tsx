@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 interface TicketData {
   price: number
   quantity: number
+  type?: string
 }
 
 interface EventSettings {
@@ -98,7 +99,7 @@ export default function SettingsPanel() {
 
   const totalRevenue = eventData.tickets?.reduce((acc, ticket) => acc + (ticket.price * ticket.quantity), 0) || 0
   const totalTickets = eventData.tickets?.reduce((acc, ticket) => acc + ticket.quantity, 0) || 0
-  const totalCourtesy = eventData.tickets?.filter(t => t.price === 0).reduce((acc, ticket) => acc + ticket.quantity, 0) || 0
+  const totalCourtesy = eventData.tickets?.filter(t => t.type === 'courtesy').reduce((acc, ticket) => acc + ticket.quantity, 0) || 0
 
   const handleStatusChange = async (targetStatus: 'active' | 'draft') => {
     if (updating) return
@@ -142,7 +143,7 @@ export default function SettingsPanel() {
   const handleToggleRule = async (rule: 'is_transferable' | 'is_resellable') => {
     if (updating) return
     
-    const defaultVal = rule === 'is_transferable' ? true : false
+    const defaultVal = true // ambas reglas son true por defecto
     const currentVal = eventData.settings?.[rule] ?? defaultVal
     const newVal = !currentVal
     
@@ -212,7 +213,7 @@ export default function SettingsPanel() {
     try {
         const { error } = await supabase
             .from('events')
-            .update({ status: targetStatus, is_active: targetStatus === 'info' || targetStatus === 'active' })
+            .update({ status: targetStatus, is_active: targetStatus === 'info' })
             .eq('id', eventData.id)
 
         if (error) {
