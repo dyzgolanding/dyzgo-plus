@@ -71,7 +71,7 @@ function LoginForm() {
                                 name="email"
                                 type="email" 
                                 required
-                                placeholder="admin@dyzgo.com"
+                                placeholder="tu@email.com"
                                 className="relative w-full bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl py-3.5 pl-14 pr-4 text-white placeholder:text-white/10 focus:outline-none focus:border-white/20 focus:bg-black/60 transition-all font-medium"
                             />
                         </div>
@@ -147,7 +147,7 @@ function LoginForm() {
                         de Eventos.
                     </h2>
                     <p className="text-sm text-white/40 leading-relaxed font-medium">
-                        Controlll de acceso en tiempo real, métricas avanzadas y gestión de staff en una sola plataforma unificada.
+                        Control de acceso en tiempo real, métricas avanzadas y gestión de staff en una sola plataforma unificada.
                     </p>
                     <div className="flex items-center gap-4 mt-10">
                         <div className="flex -space-x-3">

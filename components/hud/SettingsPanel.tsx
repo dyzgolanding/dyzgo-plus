@@ -76,9 +76,7 @@ export default function SettingsPanel() {
             
             if (currentTrans !== dbTrans || currentResell !== dbResell) {
                 // Forzamos actualización directa saltándonos las restricciones de updateSettings
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                useEventStore.setState((state: any) => ({
-                    ...state,
+                useEventStore.setState(state => ({
                     eventData: {
                         ...state.eventData,
                         settings: {
@@ -111,13 +109,8 @@ export default function SettingsPanel() {
     
     if (!eventData.id) {
         updateSettings({ isPrivate })
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useEventStore.setState((state: any) => ({
-            ...state,
-            eventData: {
-                ...state.eventData,
-                status: targetStatus
-            }
+        useEventStore.setState(state => ({
+            eventData: { ...state.eventData, status: targetStatus }
         }))
         return
     }
@@ -134,9 +127,7 @@ export default function SettingsPanel() {
             console.error('Error actualizando:', error)
             setCurrentStatus(targetStatus === 'active' ? 'draft' : 'active')
         } else {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            useEventStore.setState((state: any) => ({
-                ...state,
+            useEventStore.setState(state => ({
                 eventData: { ...state.eventData, status: targetStatus }
             }))
         }
@@ -156,9 +147,7 @@ export default function SettingsPanel() {
     const newVal = !currentVal
     
     // UI Optimista (se refleja de inmediato usando setState directo del store)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    useEventStore.setState((state: any) => ({
-        ...state,
+    useEventStore.setState(state => ({
         eventData: {
             ...state.eventData,
             settings: {
@@ -180,9 +169,7 @@ export default function SettingsPanel() {
             if (error) {
                 console.error("Error actualizando regla:", error)
                 // Revertir si hay error
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                useEventStore.setState((state: any) => ({
-                    ...state,
+                useEventStore.setState(state => ({
                     eventData: {
                         ...state.eventData,
                         settings: {
@@ -209,9 +196,7 @@ export default function SettingsPanel() {
     setCurrentStatus(targetStatus)
 
     if (!eventData.id) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        useEventStore.setState((state: any) => ({
-            ...state,
+        useEventStore.setState(state => ({
             eventData: { ...state.eventData, status: targetStatus }
         }))
         return
@@ -228,9 +213,7 @@ export default function SettingsPanel() {
             console.error('Error actualizando:', error)
             setCurrentStatus(isInfo ? 'info' : 'draft')
         } else {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            useEventStore.setState((state: any) => ({
-                ...state,
+            useEventStore.setState(state => ({
                 eventData: { ...state.eventData, status: targetStatus }
             }))
         }

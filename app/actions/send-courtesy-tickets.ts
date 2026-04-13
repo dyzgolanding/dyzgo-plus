@@ -1,6 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { getAuthenticatedUser, verifyEventOwnership } from '@/lib/supabase-server'
 
 export interface CourtesyRecipient {
   email: string
@@ -23,6 +24,10 @@ export async function sendCourtesyTickets(
   tierId: string
 ): Promise<CourtesySendResult> {
   try {
+    // Verificar sesión activa y ownership del evento
+    const user = await getAuthenticatedUser()
+    await verifyEventOwnership(eventId, user.id)
+
     const SBURL = process.env.NEXT_PUBLIC_SUPABASE_URL
     const SBKEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -96,8 +101,20 @@ export async function sendCourtesyTickets(
       })
     )
 
+    // Si fallaron TODOS los emails, hacer rollback de los tickets insertados
+    if (emailsFailed.length === newTickets.length) {
+      const insertedIds = newTickets.map((t: any) => t.id)
+      try {
+        await supabaseAdmin.from('tickets').delete().in('id', insertedIds)
+      } catch (rollbackErr) {
+        console.error('[sendCourtesyTickets] Rollback failed:', rollbackErr)
+      }
+      return { success: false, total: 0, emailsFailed, error: 'No se pudo enviar ningún correo. Los tickets no fueron creados.' }
+    }
+
     return { success: true, total: newTickets.length, emailsFailed }
-  } catch (err: any) {
-    return { success: false, total: 0, emailsFailed: [], error: err.message }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Error desconocido'
+    return { success: false, total: 0, emailsFailed: [], error: msg }
   }
 }

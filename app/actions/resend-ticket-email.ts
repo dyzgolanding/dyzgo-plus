@@ -1,6 +1,7 @@
 'use server'
 
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { getAuthenticatedUser, verifyEventOwnership } from '@/lib/supabase-server'
 
 /**
  * Reenvía el email de ticket a un asistente llamando a la misma
@@ -19,6 +20,10 @@ export async function resendTicketEmail(ticketId: string): Promise<{ success: bo
     if (ticketError || !ticket) {
       return { success: false, error: 'Ticket no encontrado.' }
     }
+
+    // 2. Verificar que el usuario autenticado sea dueño del evento al que pertenece el ticket
+    const user = await getAuthenticatedUser()
+    await verifyEventOwnership(ticket.event_id, user.id)
 
     if (ticket.status !== 'valid') {
       return { success: false, error: 'Solo se puede reenviar el correo de tickets confirmados (status: valid).' }

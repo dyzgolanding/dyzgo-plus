@@ -100,6 +100,23 @@ const formatRut = (rut: string) => {
   return `${formattedBody}-${dv}`
 }
 
+const isValidRut = (rut: string): boolean => {
+  if (!rut) return true // campo vacío es aceptable
+  const clean = rut.replace(/[^0-9kK]/g, '').toUpperCase()
+  if (clean.length < 2) return false
+  const body = clean.slice(0, -1)
+  const dv = clean.slice(-1)
+  let sum = 0
+  let multiplier = 2
+  for (let i = body.length - 1; i >= 0; i--) {
+    sum += parseInt(body[i]) * multiplier
+    multiplier = multiplier === 7 ? 2 : multiplier + 1
+  }
+  const remainder = sum % 11
+  const expected = remainder === 0 ? '0' : remainder === 1 ? 'K' : String(11 - remainder)
+  return dv === expected
+}
+
 export default function SettingsPage() {
   const { currentOrgId, currentRole, refreshOrgs, deleteOrg } = useOrg()
   const [loading, setLoading] = useState(true)
@@ -229,6 +246,14 @@ export default function SettingsPage() {
   }
 
   const handleSave = async () => {
+    if (financialData.bank_rut && !isValidRut(financialData.bank_rut)) {
+      toast.error('RUT Titular inválido. Verifica el dígito verificador.')
+      return
+    }
+    if (financialData.billing_rut && !isValidRut(financialData.billing_rut)) {
+      toast.error('RUT Empresa inválido. Verifica el dígito verificador.')
+      return
+    }
     try {
         setSaving(true)
         const { data: { user } } = await supabase.auth.getUser()

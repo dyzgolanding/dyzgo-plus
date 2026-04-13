@@ -18,6 +18,7 @@ const SettingsPanel   = dynamic(() => import('@/components/hud/SettingsPanel'), 
 const ExperiencePanel = dynamic(() => import('@/components/hud/ExperiencePanel'), { ssr: false, loading: PanelFallback })
 import { useEventStore, initialEventData } from '@/store/useEventStore'
 import { supabase } from '@/lib/supabase'
+import { saveEvent } from '@/app/actions/save-event'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -44,35 +45,35 @@ interface TicketTierDB {
     tickets_included?: number
 }
 
-function safeUUID() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0; 
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+// Fix 8: Cache en memoria para geocodificación (evita rate-limiting de Nominatim)
+const geoCache = new Map<string, { lat: number; lon: number } | null>()
 
-async function getCoordinates(address: string) {
+async function getCoordinates(address: string): Promise<{ lat: number; lon: number } | null> {
+  const key = address.trim().toLowerCase()
+  if (geoCache.has(key)) return geoCache.get(key)!
+
   try {
-    const queryAddress = address.toLowerCase().includes('chile') ? address : `${address}, Chile`;
-    const query = encodeURIComponent(queryAddress);
-    
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`, {
-        headers: { 'User-Agent': 'DyzGO-AdminPanel' }
-    });
-    
-    const data = await response.json();
-    
-    if (data && data.length > 0) {
-        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-    }
-    return null;
-  } catch (error) {
-    console.warn("No se pudieron obtener coordenadas automáticas:", error);
-    return null;
+    const queryAddress = key.includes('chile') ? address : `${address}, Chile`
+    const query = encodeURIComponent(queryAddress)
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'DyzGO-AdminPanel/1.0' }, signal: controller.signal }
+    )
+    clearTimeout(timeout)
+
+    const data = await response.json()
+    const result = data?.length > 0
+      ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
+      : null
+
+    geoCache.set(key, result)
+    return result
+  } catch {
+    return null
   }
 }
 
@@ -117,9 +118,9 @@ function CreateEventContent() {
           .eq('id', eventId)
           .single()
 
-        if (error || !event) {
+        if (error || !event || event.organizer_id !== user.id) {
           setUnauthorized(true)
-          setAuthChecked(true) 
+          setAuthChecked(true)
           return
         }
 
@@ -236,61 +237,40 @@ function CreateEventContent() {
     if (!eventData.venue?.trim()) return toast.error("Error: El lugar es obligatorio.")
     if (eventData.tickets.length === 0) return toast.error("Error: Crea al menos un ticket.")
 
-    for (const t of eventData.tickets) {
-        const soldCount = t.sold || 0;
-        if (t.quantity < soldCount) {
-            toast.error(`Error: El stock del ticket "${t.name}" (${t.quantity}) no puede ser menor a la cantidad ya vendida (${soldCount}).`);
-            return;
-        }
-    }
-
     setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        toast.error("Debes estar logueado")
-        return
-      }
+      if (!user) { toast.error("Debes estar logueado"); return }
 
+      // Subir imagen si hay una nueva (operación client-side con sesión del usuario)
       let finalImageUrl = eventData.coverImage
-      
-      const fileToUpload = useEventStore.getState().tempFile 
-
+      const fileToUpload = useEventStore.getState().tempFile
       if (fileToUpload) {
         const fileExt = fileToUpload.name.split('.').pop()
-        const fileName = `${user.id}/${Math.random()}.${fileExt}`
-        const { error: uploadError } = await supabase.storage
-          .from('flyers')
-          .upload(fileName, fileToUpload)
-        
+        const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`
+        const { error: uploadError } = await supabase.storage.from('flyers').upload(fileName, fileToUpload)
         if (uploadError) throw uploadError
         const { data: { publicUrl } } = supabase.storage.from('flyers').getPublicUrl(fileName)
         finalImageUrl = publicUrl
       }
 
-      let lat = null;
-      let lon = null;
-      
+      // Geocodificación con cache (Fix 8)
+      let lat = null, lon = null
       if (eventData.address) {
-          const coords = await getCoordinates(eventData.address);
-          if (coords) {
-              lat = coords.lat;
-              lon = coords.lon;
-          }
+        const coords = await getCoordinates(eventData.address)
+        if (coords) { lat = coords.lat; lon = coords.lon }
       }
 
-      // El status final viene del estado del store (controlado por SettingsPanel)
       const finalStatus = eventData.status || 'draft'
 
       const eventPayload = {
-        organizer_id: user.id, 
         title: eventData.name,
         region: eventData.region,
         commune: eventData.commune,
         street: eventData.street,
         street_number: eventData.number,
-        latitude: lat, 
-        longitude: lon, 
+        latitude: lat,
+        longitude: lon,
         club_name: eventData.venue,
         date: eventData.date,
         end_date: eventData.endDate || eventData.date,
@@ -307,94 +287,52 @@ function CreateEventContent() {
         category: eventData.category,
         accent_color: eventData.accentColor,
         is_active: finalStatus === 'active' || finalStatus === 'info',
-        status: finalStatus 
+        status: finalStatus,
       }
 
-      let currentEventId = eventId
+      // Preparar tiers (Fix 6: crypto.randomUUID() siempre, sin fallback inseguro)
+      const ticketsToSave = eventData.tickets.map((t, index) => ({
+        id: (t.id && t.id.length > 20) ? t.id : crypto.randomUUID(),
+        name: t.name,
+        price: t.price,
+        total_stock: t.quantity,
+        description: t.description,
+        sales_end_at: t.endDate || null,
+        is_active: t.isActive,
+        nominative: t.isNominative,
+        fake_sold: t.isGhostSoldOut,
+        sales_start_at: t.startDate || null,
+        hour_start: t.startDate ? new Date(t.startDate).toTimeString().slice(0, 5) : null,
+        end_hour: t.endDate ? new Date(t.endDate).toTimeString().slice(0, 5) : null,
+        type: (t.type === 'courtesy' ? 'courtesy' : 'paid') as 'paid' | 'courtesy',
+        sort_order: index,
+      }))
 
-      if (eventId) {
-        const { error } = await supabase
-          .from('events')
-          .update({
-             ...eventPayload,
-             organizer_id: undefined 
-          })
-          .eq('id', eventId)
-        
-        if (error) throw error
-      } else {
-        const { data: event, error: eventError } = await supabase.from('events').insert([eventPayload]).select().single()
-        if (eventError) throw eventError
-        currentEventId = event.id
+      // Fix 4 + 7: server action atómico con validación server-side de stock y rollback
+      const result = await saveEvent(eventId, eventPayload, ticketsToSave)
+      if (!result.success) {
+        toast.error(result.error ?? 'Error al guardar el evento.')
+        return
       }
 
-      if (currentEventId) {
-          try {
-            const { data: existingTiers } = await supabase
-                .from('ticket_tiers')
-                .select('id')
-                .eq('event_id', currentEventId)
+      const currentEventId = result.eventId ?? eventId
 
-            if (existingTiers) {
-                const uiIds = eventData.tickets.map(t => t.id).filter(id => id && id.length > 20) 
-                const idsToDelete = existingTiers.map(t => t.id).filter(dbId => !uiIds.includes(dbId))
-
-                if (idsToDelete.length > 0) {
-                    await supabase.from('ticket_tiers').delete().in('id', idsToDelete)
-                }
-            }
-          } catch (delErr) { console.warn(delErr) }
-      }
-
-      if (eventData.tickets.length > 0) {
-        const ticketsToSave = eventData.tickets.map((t, index) => {
-            const startHourStr = t.startDate ? new Date(t.startDate).toTimeString().slice(0, 5) : null
-            const endHourStr = t.endDate ? new Date(t.endDate).toTimeString().slice(0, 5) : null
-
-            return {
-                id: (t.id && t.id.length > 20) ? t.id : safeUUID(),
-                event_id: currentEventId,
-                name: t.name,
-                price: t.price,
-                total_stock: t.quantity,
-                description: t.description,
-                sales_end_at: t.endDate || null,
-                is_active: t.isActive,
-                nominative: t.isNominative,
-                fake_sold: t.isGhostSoldOut,
-                sales_start_at: t.startDate || null,
-                hour_start: startHourStr,
-                end_hour: endHourStr,
-                type: t.type === 'courtesy' ? 'courtesy' : 'paid',
-                sort_order: index,
-            }
-        })
-
-        const { error: ticketError } = await supabase.from('ticket_tiers').upsert(ticketsToSave)
-        if (ticketError) throw ticketError
-      }
-
-      initialDataRef.current = JSON.stringify(eventData);
-      setIsDirty(false);
-      isDirtyRef.current = false;
-      setShowUnsavedModal(false);
+      initialDataRef.current = JSON.stringify(eventData)
+      setIsDirty(false)
+      isDirtyRef.current = false
+      setShowUnsavedModal(false)
 
       if (!eventId) {
-          setNewlyCreatedId(currentEventId);
-          setShowStatusModal(true);
+        setNewlyCreatedId(currentEventId ?? null)
+        setShowStatusModal(true)
       } else {
-          setActiveSection('settings')
-          setShowSuccessToast(true)
-          setTimeout(() => setShowSuccessToast(false), 3000)
+        setActiveSection('settings')
+        setShowSuccessToast(true)
+        setTimeout(() => setShowSuccessToast(false), 3000)
       }
 
     } catch (error: unknown) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === 'object' && error !== null && 'message' in error
-            ? String((error as Record<string, unknown>).message)
-            : 'Error desconocido'
+      const message = error instanceof Error ? error.message : 'Error desconocido'
       console.error('[handlePublish]', message, error)
       toast.error("Error al guardar: " + message)
     } finally {

@@ -8,11 +8,11 @@ import {
     X, Calendar, Clock, User, ChevronDown, Send, Save, Eye
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
-import { useEventStore } from '@/store/useEventStore'
+import { useEventStore, type Ticket as TicketItem } from '@/store/useEventStore'
 import { toast } from 'sonner'
 import { resendTicketEmail } from '@/app/actions/resend-ticket-email'
 import { createCourtesyTickets } from '@/app/actions/create-courtesy-tickets'
-import { sendCourtesyTickets } from '@/app/actions/send-courtesy-tickets'
+import { sendCourtesyTickets, type CourtesyRecipient } from '@/app/actions/send-courtesy-tickets'
 
 // --- IMPORTS PARA EL DATEPICKER ---
 import DatePicker, { registerLocale } from 'react-datepicker' 
@@ -147,7 +147,8 @@ const CustomSelect = ({ options, value, onChange, placeholder, variant = 'green'
 };
 
 interface CourtesyTicket {
-  id: string; guest_name: string; guest_email: string; ticket_name: string; created_at: string; status: string
+  id: string; guest_name: string; guest_email: string; ticket_name: string; created_at: string; status: string;
+  ticket_tiers: { name: string } | null;
 }
 
 interface UploadedGroup {
@@ -193,7 +194,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
             setUploadedGroups(eventDataDB.uploaded_dbs as UploadedGroup[])
         }
         
-        const { data: ticketsData, error: ticketsError } = await supabase.from('tickets').select('*').eq('event_id', eventId).order('created_at', { ascending: false })
+        const { data: ticketsData, error: ticketsError } = await supabase.from('tickets').select('*, ticket_tiers(name)').eq('event_id', eventId).order('created_at', { ascending: false })
         if (ticketsError) throw ticketsError
         if (ticketsData) setCourtesyList(ticketsData as unknown as CourtesyTicket[])
       } catch (error) { console.error('Error fetching data:', error) } finally { setLoading(false) }
@@ -257,11 +258,72 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
           setIsIndividualCourtesyOpen(false)
           setRecipients([{ email: '', nombre: '', apellido: '', rut: '', cantidad: 1 }])
 
-          const { data: ticketsData } = await supabase.from('tickets').select('*').eq('event_id', eventId).order('created_at', { ascending: false })
+          const { data: ticketsData } = await supabase.from('tickets').select('*, ticket_tiers(name)').eq('event_id', eventId).order('created_at', { ascending: false })
           if (ticketsData) setCourtesyList(ticketsData as unknown as CourtesyTicket[])
 
-      } catch (err: any) {
-          toast.error(`Error: ${err.message}`, { id: toastId })
+      } catch (err: unknown) {
+          toast.error(`Error: ${err instanceof Error ? err.message : 'Error desconocido'}`, { id: toastId })
+      } finally {
+          setLoading(false)
+      }
+  }
+
+  const handleMassDispatch = async () => {
+      if (!selectedDb) return toast.error("Selecciona una base de datos.")
+      if (!selectedTicket) return toast.error("Selecciona un ticket de cortesía.")
+
+      const group = uploadedGroups.find(g => g.name === selectedDb)
+      if (!group || group.data.length === 0) return toast.error("La base de datos seleccionada está vacía.")
+
+      // Mapear columnas del Excel a destinatarios (búsqueda flexible por nombre de columna)
+      const get = (row: Record<string, unknown>, keys: string[]) => {
+          for (const key of keys) {
+              const found = Object.entries(row).find(([k]) => k.toLowerCase().trim() === key.toLowerCase())
+              if (found && found[1] != null && String(found[1]).trim()) return String(found[1]).trim()
+          }
+          return ''
+      }
+
+      const recipients: CourtesyRecipient[] = (group.data as Record<string, unknown>[])
+          .map(row => ({
+              email:    get(row, ['email', 'correo', 'mail', 'e-mail']),
+              nombre:   get(row, ['nombre', 'name', 'first_name', 'primer nombre']),
+              apellido: get(row, ['apellido', 'last_name', 'surname', 'primer apellido']),
+              rut:      get(row, ['rut', 'run']),
+              cantidad: Number(get(row, ['cantidad', 'quantity', 'qty', 'cant'])) || 1,
+          }))
+          .filter(r => r.email)
+
+      if (recipients.length === 0)
+          return toast.error("Ningún registro tiene email. Verifica la columna 'email' en tu archivo.")
+
+      setLoading(true)
+      const toastId = toast.loading(`Despachando ${recipients.length} cortesías...`)
+
+      try {
+          const result = await sendCourtesyTickets(recipients, eventId, selectedTicket)
+
+          if (!result.success) throw new Error(result.error)
+
+          if (result.emailsFailed.length > 0) {
+              toast.warning(
+                  `${result.total} cortesías creadas, pero ${result.emailsFailed.length} email(s) fallaron: ${result.emailsFailed.join(', ')}`,
+                  { id: toastId }
+              )
+          } else {
+              toast.success(`Se despacharon ${result.total} cortesías correctamente.`, { id: toastId })
+          }
+
+          setIsGroupCourtesyOpen(false)
+          setSelectedDb('')
+          setSelectedTicket('')
+          setSelectedDate(null)
+
+          const { data: ticketsData } = await supabase.from('tickets').select('*, ticket_tiers(name)').eq('event_id', eventId).order('created_at', { ascending: false })
+          if (ticketsData) setCourtesyList(ticketsData as unknown as CourtesyTicket[])
+
+      } catch (err: unknown) {
+          toast.error(`Error: ${err instanceof Error ? err.message : 'Error desconocido'}`, { id: toastId })
       } finally {
           setLoading(false)
       }
@@ -278,7 +340,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
 
   const filteredList = courtesyList.filter(ticket => ticket.guest_name?.toLowerCase().includes(searchTerm.toLowerCase()) || ticket.guest_email?.toLowerCase().includes(searchTerm.toLowerCase()) || ticket.ticket_name?.toLowerCase().includes(searchTerm.toLowerCase()))
 
-  const courtesyTicketsOnly = (eventData as any)?.tickets?.filter((t: any) => t.type === 'courtesy') || []
+  const courtesyTicketsOnly: TicketItem[] = eventData.tickets?.filter(t => t.type === 'courtesy') ?? []
 
   if (loading) return (
     <div className="flex items-center justify-center h-full pt-40">
@@ -441,7 +503,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                                 </div>
                                 <div className="col-span-3">
                                     <span className="bg-[#8A2BE2]/10 text-[#8A2BE2] border border-[#8A2BE2]/20 px-3 py-1 rounded-lg font-bold text-[10px] uppercase tracking-wide shadow-sm">
-                                        {ticket.ticket_name}
+                                        {ticket.ticket_tiers?.name || ticket.ticket_name || ticket.status}
                                     </span>
                                 </div>
                                 <div className="col-span-3 text-white/50 font-medium flex items-center gap-2">
@@ -486,7 +548,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                                 onChange={setSelectedIndividualTicket}
                                 placeholder="Seleccionar Ticket..."
                                 variant="purple"
-                                options={courtesyTicketsOnly.map((t: any) => ({ label: t.name, value: t.id }))}
+                                options={courtesyTicketsOnly.map(t => ({ label: t.name, value: t.id }))}
                             />
                         </div>
 
@@ -542,7 +604,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                         </div>
                         <div className="space-y-4">
                             <label className="text-[10px] font-black text-[#00D15B] uppercase tracking-[0.2em] ml-2">Ticket (Cortesía)</label>
-                            <CustomSelect value={selectedTicket} onChange={setSelectedTicket} placeholder="Seleccionar..." variant="green" options={courtesyTicketsOnly.map((t: any) => ({ label: t.name, value: t.name }))} />
+                            <CustomSelect value={selectedTicket} onChange={setSelectedTicket} placeholder="Seleccionar..." variant="green" options={courtesyTicketsOnly.map(t => ({ label: t.name, value: t.id }))} />
                         </div>
                         <div className="space-y-4">
                             <label className="text-[10px] font-black text-[#00D15B] uppercase tracking-[0.2em] ml-2">Vencimiento</label>
@@ -550,8 +612,13 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                         </div>
                     </div>
 
-                    <button className="w-full py-6 bg-gradient-to-r from-[#00D15B] to-[#10b981] text-black font-black rounded-[2rem] shadow-[0_0_50px_rgba(34,197,94,0.3)] uppercase tracking-[0.3em] transition-all hover:scale-[1.01] active:scale-95 text-xs flex items-center justify-center gap-3 relative z-10 group">
-                        <Send size={18} className="group-hover:translate-x-1 transition-transform"/> Iniciar Despacho
+                    <button
+                        onClick={handleMassDispatch}
+                        disabled={loading}
+                        className="w-full py-6 bg-gradient-to-r from-[#00D15B] to-[#10b981] text-black font-black rounded-[2rem] shadow-[0_0_50px_rgba(34,197,94,0.3)] uppercase tracking-[0.3em] transition-all hover:scale-[1.01] active:scale-95 text-xs flex items-center justify-center gap-3 relative z-10 group disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
+                    >
+                        {loading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className="group-hover:translate-x-1 transition-transform" />}
+                        {loading ? 'Despachando...' : 'Iniciar Despacho'}
                     </button>
                 </div>
             </div>

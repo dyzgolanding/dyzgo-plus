@@ -285,6 +285,7 @@ export const useEventStore = create<EventState>((set, get) => ({
           borderColor: event.border_color ?? initialEventData.borderColor,
           accentColor: event.accent_color ?? initialEventData.accentColor,
           tickets,
+          status: event.status ?? 'draft',
           settings: {
             ...initialEventData.settings,
             isPrivate: event.status === 'draft',

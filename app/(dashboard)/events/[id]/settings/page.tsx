@@ -26,6 +26,7 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
   const eventId = resolvedParams.id
 
   const { updateSettings } = useEventStore()
+  const [isLoading, setIsLoading] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -70,11 +71,12 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
         if (event.max_tickets_per_person) setMaxTickets(event.max_tickets_per_person)
         setIsTransferable(event.is_transferable ?? true)
         setIsResellable(event.is_resellable ?? true)
-        
+
         // Guardamos fechas para validar al guardar
         setEventEndDate(event.end_date || event.date)
         setEventEndTime(event.end_time || '23:59:59')
       }
+      setIsLoading(false)
     }
 
     fetchLatestData()
@@ -162,6 +164,24 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
       toast.error("Error al sincronizar. Revisa la consola para más detalles.")
     } finally { setIsSaving(false) }
   }
+
+  if (isLoading) return (
+    <div className="relative z-10 max-w-[1600px] mx-auto space-y-8 pt-4 animate-pulse">
+      <div className="border-b border-white/5 pb-8 flex justify-between items-end">
+        <div className="space-y-3">
+          <div className="h-9 w-64 bg-white/5 rounded-2xl" />
+          <div className="h-4 w-80 bg-white/5 rounded-xl" />
+        </div>
+        <div className="h-11 w-36 bg-white/5 rounded-xl" />
+      </div>
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} className="bg-white/5 border border-white/5 rounded-[2rem] p-8 space-y-4">
+          <div className="h-5 w-48 bg-white/5 rounded-xl" />
+          <div className="h-16 bg-white/5 rounded-2xl" />
+        </div>
+      ))}
+    </div>
+  )
 
   return (
     // CONTENEDOR LIMPIO (Sin fondo, ya está en el Layout)
