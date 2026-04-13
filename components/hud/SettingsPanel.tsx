@@ -133,6 +133,12 @@ export default function SettingsPanel() {
         if (error) {
             console.error('Error actualizando:', error)
             setCurrentStatus(targetStatus === 'active' ? 'draft' : 'active')
+        } else {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            useEventStore.setState((state: any) => ({
+                ...state,
+                eventData: { ...state.eventData, status: targetStatus }
+            }))
         }
     } catch (err) {
         console.error("Error:", err)
