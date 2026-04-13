@@ -50,7 +50,9 @@ interface VisibilityBtnProps {
 export default function SettingsPanel() {
   const { eventData, updateSettings } = useEventStore() as unknown as StoreState
   const [updating, setUpdating] = useState(false)
-  const [currentStatus, setCurrentStatus] = useState<string | null>(eventData.id ? null : 'draft')
+  const [currentStatus, setCurrentStatus] = useState<string | null>(
+    eventData.id ? (eventData.status ?? null) : 'draft'
+  )
 
   // 1. EFECTO DE VERDAD ABSOLUTA (Sincroniza estado y reglas comerciales)
   useEffect(() => {

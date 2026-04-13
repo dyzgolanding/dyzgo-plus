@@ -40,6 +40,8 @@ interface TicketTierDB {
     fake_sold: boolean
     sales_start_at: string
     sales_end_at: string
+    type?: string
+    tickets_included?: number
 }
 
 function safeUUID() {
@@ -123,6 +125,8 @@ function CreateEventContent() {
 
         const loadedState = {
             ...initialEventData,  // base limpia — evita datos stale de evento previo
+            id: event.id,
+            clubId: event.club_id || '',
             name: event.title || '',
             venue: event.club_name || '',
             address: event.location || '',
@@ -137,6 +141,7 @@ function CreateEventContent() {
             description: event.description || '',
             coverImage: event.image_url,
             themeColor: event.theme_color || '#8A2BE2',
+            accentColor: event.accent_color || initialEventData.accentColor,
             category: event.category || '',
             dressCode: event.dress_code || '',
             minAgeMen: event.min_age_men || 0,
@@ -158,7 +163,9 @@ function CreateEventContent() {
               isGhostSoldOut: t.fake_sold,
               startDate: t.sales_start_at ? new Date(t.sales_start_at).toISOString().slice(0, 16) : '',
               endDate: t.sales_end_at ? new Date(t.sales_end_at).toISOString().slice(0, 16) : '',
-              color: 'purple', 
+              color: t.type === 'courtesy' ? 'pink' : 'purple', 
+              type: t.type === 'courtesy' ? 'courtesy' : 'paid',
+              ticketsIncluded: t.tickets_included || 1,
               dependencyId: '' 
             })) : [],
 

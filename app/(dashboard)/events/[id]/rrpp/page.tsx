@@ -10,6 +10,9 @@ import {
 import * as XLSX from 'xlsx'
 import { useEventStore } from '@/store/useEventStore'
 import { toast } from 'sonner'
+import { resendTicketEmail } from '@/app/actions/resend-ticket-email'
+import { createCourtesyTickets } from '@/app/actions/create-courtesy-tickets'
+import { sendCourtesyTickets } from '@/app/actions/send-courtesy-tickets'
 
 // --- IMPORTS PARA EL DATEPICKER ---
 import DatePicker, { registerLocale } from 'react-datepicker' 
@@ -231,6 +234,46 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
     })
   }
 
+  const handleSendInvitations = async () => {
+      if (!selectedIndividualTicket) return toast.error("Selecciona un ticket primero.")
+      if (recipients.length === 0 || recipients.some(r => !r.email)) return toast.error("Completa el email de todos los asistentes.")
+      if (recipients.some(r => !r.rut)) return toast.error("El RUT es obligatorio para enviar una cortesía.")
+      if (recipients.some(r => r.rut.length < 8)) return toast.error("Ingresa un RUT válido (ej: 12345678-9).")
+
+      setLoading(true)
+      const toastId = toast.loading("Enviando cortesías...")
+
+      try {
+          const result = await sendCourtesyTickets(recipients, eventId, selectedIndividualTicket)
+
+          if (!result.success) throw new Error(result.error)
+
+          if (result.emailsFailed.length > 0) {
+              toast.warning(`${result.total} cortesías creadas, pero ${result.emailsFailed.length} email(s) fallaron: ${result.emailsFailed.join(', ')}`, { id: toastId })
+          } else {
+              toast.success(`Se enviaron ${result.total} cortesías correctamente`, { id: toastId })
+          }
+
+          setIsIndividualCourtesyOpen(false)
+          setRecipients([{ email: '', nombre: '', apellido: '', rut: '', cantidad: 1 }])
+
+          const { data: ticketsData } = await supabase.from('tickets').select('*').eq('event_id', eventId).order('created_at', { ascending: false })
+          if (ticketsData) setCourtesyList(ticketsData as unknown as CourtesyTicket[])
+
+      } catch (err: any) {
+          toast.error(`Error: ${err.message}`, { id: toastId })
+      } finally {
+          setLoading(false)
+      }
+  }
+
+  const formatRut = (val: string): string => {
+      let v = val.replace(/[^0-9kK]/g, '').toUpperCase()
+      if (v.length > 9) v = v.slice(0, 9)
+      if (v.length > 1) v = v.slice(0, -1) + '-' + v.slice(-1)
+      return v
+  }
+
   const addRecipient = () => setRecipients([...recipients, { email: '', nombre: '', apellido: '', rut: '', cantidad: 1 }])
 
   const filteredList = courtesyList.filter(ticket => ticket.guest_name?.toLowerCase().includes(searchTerm.toLowerCase()) || ticket.guest_email?.toLowerCase().includes(searchTerm.toLowerCase()) || ticket.ticket_name?.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -443,18 +486,18 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                                 onChange={setSelectedIndividualTicket}
                                 placeholder="Seleccionar Ticket..."
                                 variant="purple"
-                                options={courtesyTicketsOnly.map((t: any) => ({ label: t.name, value: t.name }))}
+                                options={courtesyTicketsOnly.map((t: any) => ({ label: t.name, value: t.id }))}
                             />
                         </div>
 
                         <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
                             {recipients.map((r, i) => (
                                 <div key={i} className="grid grid-cols-1 md:grid-cols-6 gap-5 items-end bg-white/5 p-6 rounded-[2rem] border border-white/5 hover:border-[#8A2BE2]/40 transition-all shadow-lg hover:shadow-[#8A2BE2]/10 group">
-                                    <div className="space-y-2 col-span-1.5"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1 group-hover:text-[#8A2BE2] transition-colors">Email</label><input placeholder="ej@mail.com" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Nombre</label><input placeholder="Nombre" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Apellido</label><input placeholder="Apellido" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">RUT</label><input placeholder="Opcional" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Cant.</label><input type="number" defaultValue={1} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner text-center" /></div>
+                                    <div className="space-y-2 col-span-1.5"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1 group-hover:text-[#8A2BE2] transition-colors">Email</label><input value={r.email} onChange={e => {const copy = [...recipients]; copy[i].email = e.target.value; setRecipients(copy);}} placeholder="ej@mail.com" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
+                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Nombre</label><input value={r.nombre} onChange={e => {const copy = [...recipients]; copy[i].nombre = e.target.value; setRecipients(copy);}} placeholder="Nombre" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
+                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Apellido</label><input value={r.apellido} onChange={e => {const copy = [...recipients]; copy[i].apellido = e.target.value; setRecipients(copy);}} placeholder="Apellido" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
+                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1 group-hover:text-[#8A2BE2] transition-colors">RUT <span className="text-[#FF007F]">*</span></label><input value={r.rut} onChange={e => {const copy = [...recipients]; copy[i].rut = formatRut(e.target.value); setRecipients(copy);}} placeholder="12345678-9" maxLength={10} className={`w-full bg-black/40 border rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner ${!r.rut ? 'border-[#FF007F]/40' : 'border-white/10'}`} /></div>
+                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Cant.</label><input value={r.cantidad} onChange={e => {const copy = [...recipients]; copy[i].cantidad = Number(e.target.value); setRecipients(copy);}} type="number" min="1" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner text-center" /></div>
                                     <button onClick={() => setRecipients(recipients.filter((_, idx) => idx !== i))} className="p-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-2xl transition-all mb-0.5 border border-red-500/20 hover:border-transparent hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]"><X size={18} /></button>
                                 </div>
                             ))}
@@ -464,8 +507,8 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                             <button onClick={addRecipient} className="flex-1 py-5 bg-white/5 border border-white/10 text-white/50 font-bold rounded-[1.5rem] hover:text-white hover:bg-white/10 hover:border-white/20 transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2">
                                 <Plus size={16}/> Añadir Persona
                             </button>
-                            <button className="flex-[2.5] py-5 bg-gradient-to-r from-[#8A2BE2] to-[#7c3aed] text-white font-black rounded-[1.5rem] shadow-[0_0_40px_rgba(138,43,226,0.3)] uppercase tracking-[0.25em] transition-all hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3">
-                                <Send size={16} /> Despachar Cortesías
+                            <button onClick={handleSendInvitations} disabled={loading} className="flex-[2.5] py-5 bg-gradient-to-r from-[#8A2BE2] to-[#7c3aed] text-white font-black rounded-[1.5rem] shadow-[0_0_40px_rgba(138,43,226,0.3)] uppercase tracking-[0.25em] transition-all hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50">
+                                {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Despachar Cortesías
                             </button>
                         </div>
                     </div>

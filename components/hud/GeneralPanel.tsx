@@ -288,7 +288,13 @@ export default function GeneralPanel() {
     return regionData ? [...regionData.comunas].sort((a, b) => a.localeCompare(b, 'es')) : []
   }, [eventData.region])
 
-  const lastComposedAddress = useRef('')
+  const lastComposedAddress = useRef(
+    [
+      `${eventData.street || ''} ${eventData.number || ''}`.trim(),
+      eventData.commune,
+      eventData.region,
+    ].filter(Boolean).join(', ')
+  )
 
   useEffect(() => {
     const parts = [
