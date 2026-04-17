@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthenticatedUser, verifyEventOwnership } from '@/lib/supabase-server'
+import { waitUntil } from '@vercel/functions'
 
 export interface CourtesyRecipient {
   email: string
@@ -76,43 +77,59 @@ export async function sendCourtesyTickets(
       return { success: false, total: 0, emailsFailed: [], error: insertError.message }
     }
 
-    // Enviar emails y recolectar errores
-    const emailsFailed: string[] = []
-    await Promise.all(
-      newTickets.map(async (ticket) => {
-        try {
-          const res = await fetch(`${SBURL}/functions/v1/send-ticket-email`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SBKEY}`,
-            },
-            body: JSON.stringify({ type: 'UPDATE', record: ticket }),
-          })
-          if (!res.ok) {
-            const body = await res.text()
-            console.error(`[sendCourtesyTickets] Email error for ${ticket.guest_email}:`, body)
-            emailsFailed.push(ticket.guest_email ?? ticket.id)
-          }
-        } catch (err) {
-          console.error(`[sendCourtesyTickets] Email exception for ${ticket.guest_email}:`, err)
-          emailsFailed.push(ticket.guest_email ?? ticket.id)
-        }
-      })
-    )
+    // Disparar emails en segundo plano — no bloquea el server action
+    // waitUntil mantiene el proceso vivo en Vercel hasta que terminen todos los envíos
+    const BATCH_SIZE = 4
+    const BATCH_DELAY_MS = 1100
+    const MAX_RETRIES = 4
 
-    // Si fallaron TODOS los emails, hacer rollback de los tickets insertados
-    if (emailsFailed.length === newTickets.length) {
-      const insertedIds = newTickets.map((t: any) => t.id)
-      try {
-        await supabaseAdmin.from('tickets').delete().in('id', insertedIds)
-      } catch (rollbackErr) {
-        console.error('[sendCourtesyTickets] Rollback failed:', rollbackErr)
+    const sendAllEmails = async () => {
+      const sendWithRetry = async (ticket: any): Promise<void> => {
+        let delay = 500
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            const res = await fetch(`${SBURL}/functions/v1/send-ticket-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SBKEY}`,
+              },
+              body: JSON.stringify({ type: 'UPDATE', record: ticket }),
+            })
+            if (res.status === 429 && attempt < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, delay))
+              delay *= 2
+              continue
+            }
+            if (!res.ok) {
+              const body = await res.text()
+              console.error(`[sendCourtesyTickets] Email error for ${ticket.guest_email}:`, body)
+            }
+            return
+          } catch (err) {
+            if (attempt < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, delay))
+              delay *= 2
+            } else {
+              console.error(`[sendCourtesyTickets] Email exception for ${ticket.guest_email}:`, err)
+            }
+          }
+        }
       }
-      return { success: false, total: 0, emailsFailed, error: 'No se pudo enviar ningún correo. Los tickets no fueron creados.' }
+
+      for (let i = 0; i < newTickets.length; i += BATCH_SIZE) {
+        const batch = newTickets.slice(i, i + BATCH_SIZE)
+        await Promise.all(batch.map(sendWithRetry))
+        if (i + BATCH_SIZE < newTickets.length) {
+          await new Promise(r => setTimeout(r, BATCH_DELAY_MS))
+        }
+      }
     }
 
-    return { success: true, total: newTickets.length, emailsFailed }
+    // Retorna inmediatamente — los emails se envían en background
+    waitUntil(sendAllEmails())
+
+    return { success: true, total: newTickets.length, emailsFailed: [] }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error desconocido'
     return { success: false, total: 0, emailsFailed: [], error: msg }

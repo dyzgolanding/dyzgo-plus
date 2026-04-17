@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState, use, forwardRef, useRef } from 'react'
+import { useEffect, useState, use, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { 
     Loader2, Plus, Ticket, Gift, Search,
     Layers, PlusCircle, FileSpreadsheet, Download, Upload, CheckCircle2, Trash2,
-    X, Calendar, Clock, User, ChevronDown, Send, Save, Eye
+    X, Clock, User, ChevronDown, Send, Save, Eye
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useEventStore, type Ticket as TicketItem } from '@/store/useEventStore'
@@ -14,94 +14,6 @@ import { resendTicketEmail } from '@/app/actions/resend-ticket-email'
 import { createCourtesyTickets } from '@/app/actions/create-courtesy-tickets'
 import { sendCourtesyTickets, type CourtesyRecipient } from '@/app/actions/send-courtesy-tickets'
 
-// --- IMPORTS PARA EL DATEPICKER ---
-import DatePicker, { registerLocale } from 'react-datepicker' 
-import "react-datepicker/dist/react-datepicker.css"
-import { es } from 'date-fns/locale/es'
-
-registerLocale('es', es)
-
-// --- ESTILOS CSS PERSONALIZADOS PARA EL DATEPICKER (DARK THEME) ---
-const datePickerStyles = `
-  .react-datepicker-wrapper { width: 100%; }
-  .react-datepicker-popper { z-index: 9999 !important; }
-  .react-datepicker {
-    font-family: inherit;
-    background-color: #09090b; 
-    border: 1px solid rgba(255,255,255,0.1); 
-    color: white;
-    border-radius: 1.5rem;
-    padding: 1rem;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(20px);
-  }
-  .react-datepicker__header {
-    background-color: transparent;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    padding-top: 0.5rem;
-  }
-  .react-datepicker__current-month {
-    color: white !important;
-    font-weight: 800;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-bottom: 1rem;
-  }
-  .react-datepicker__day-name {
-    color: rgba(255,255,255,0.3) !important;
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 0.7rem;
-    margin: 0.3rem;
-  }
-  .react-datepicker__day { 
-    color: rgba(255,255,255,0.8); 
-    font-weight: 500;
-    margin: 0.3rem;
-    width: 2rem;
-    height: 2rem;
-    line-height: 2rem;
-    border-radius: 0.75rem;
-    transition: all 0.2s;
-  }
-  .react-datepicker__day:hover {
-    background-color: rgba(255,255,255,0.1) !important;
-    color: white !important;
-  }
-  /* Día seleccionado */
-  .react-datepicker__day--selected, .react-datepicker__day--keyboard-selected {
-    background-color: #00D15B !important;
-    color: black !important;
-    font-weight: 900;
-    box-shadow: 0 0 20px rgba(0, 209, 91, 0.3);
-  }
-  .react-datepicker__day--today {
-    border: 1px solid #00D15B;
-    font-weight: bold;
-    color: #00D15B;
-    background-color: transparent;
-  }
-  .react-datepicker__day--outside-month { color: rgba(255,255,255,0.1) !important; }
-  .react-datepicker__navigation-icon::before {
-    border-color: rgba(255,255,255,0.5); border-width: 2px 2px 0 0; height: 6px; width: 6px;
-  }
-`
-
-// --- INPUT PERSONALIZADO DATEPICKER ---
-interface CustomDateInputProps {
-  value?: string;
-  onClick?: () => void;
-  placeholder?: string;
-}
-
-// eslint-disable-next-line react/display-name
-const CustomDateInput = forwardRef<HTMLDivElement, CustomDateInputProps>(({ value, onClick, placeholder }, ref) => (
-  <div onClick={onClick} ref={ref} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm outline-none hover:border-[#00D15B]/50 focus:border-[#00D15B] cursor-pointer transition-all font-medium flex justify-between items-center group shadow-sm text-white">
-      <span className={value ? 'text-white' : 'text-white/30'}>{value || placeholder}</span>
-      <Calendar className="text-white/30 group-hover:text-[#00D15B] transition-colors" size={18}/>
-  </div>
-))
 
 // --- COMPONENTE SELECT PERSONALIZADO ---
 const CustomSelect = ({ options, value, onChange, placeholder, variant = 'green' }: { options: { label: string, value: string }[], value: string, onChange: (val: string) => void, placeholder: string, variant?: 'green' | 'purple' }) => {
@@ -178,8 +90,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
   const [viewingGroup, setViewingGroup] = useState<UploadedGroup | null>(null)
 
   // ESTADOS MODALES
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [selectedDb, setSelectedDb] = useState('')
+const [selectedDb, setSelectedDb] = useState('')
   const [selectedTicket, setSelectedTicket] = useState('')
   const [selectedIndividualTicket, setSelectedIndividualTicket] = useState('') 
 
@@ -238,8 +149,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
   const handleSendInvitations = async () => {
       if (!selectedIndividualTicket) return toast.error("Selecciona un ticket primero.")
       if (recipients.length === 0 || recipients.some(r => !r.email)) return toast.error("Completa el email de todos los asistentes.")
-      if (recipients.some(r => !r.rut)) return toast.error("El RUT es obligatorio para enviar una cortesía.")
-      if (recipients.some(r => r.rut.length < 8)) return toast.error("Ingresa un RUT válido (ej: 12345678-9).")
+      if (recipients.some(r => r.rut && r.rut.length < 8)) return toast.error("Ingresa un RUT válido (ej: 12345678-9).")
 
       setLoading(true)
       const toastId = toast.loading("Enviando cortesías...")
@@ -317,7 +227,6 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
           setIsGroupCourtesyOpen(false)
           setSelectedDb('')
           setSelectedTicket('')
-          setSelectedDate(null)
 
           const { data: ticketsData } = await supabase.from('tickets').select('*, ticket_tiers(name)').eq('event_id', eventId).order('created_at', { ascending: false })
           if (ticketsData) setCourtesyList(ticketsData as unknown as CourtesyTicket[])
@@ -351,7 +260,6 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
   return (
     // CONTENEDOR LIMPIO
     <div className="relative z-10 w-full max-w-[1600px] mx-auto space-y-8 animate-in fade-in pt-4">
-        <style>{datePickerStyles}</style>
         
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-8">
@@ -558,7 +466,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                                     <div className="space-y-2 col-span-1.5"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1 group-hover:text-[#8A2BE2] transition-colors">Email</label><input value={r.email} onChange={e => {const copy = [...recipients]; copy[i].email = e.target.value; setRecipients(copy);}} placeholder="ej@mail.com" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
                                     <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Nombre</label><input value={r.nombre} onChange={e => {const copy = [...recipients]; copy[i].nombre = e.target.value; setRecipients(copy);}} placeholder="Nombre" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
                                     <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Apellido</label><input value={r.apellido} onChange={e => {const copy = [...recipients]; copy[i].apellido = e.target.value; setRecipients(copy);}} placeholder="Apellido" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
-                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1 group-hover:text-[#8A2BE2] transition-colors">RUT <span className="text-[#FF007F]">*</span></label><input value={r.rut} onChange={e => {const copy = [...recipients]; copy[i].rut = formatRut(e.target.value); setRecipients(copy);}} placeholder="12345678-9" maxLength={10} className={`w-full bg-black/40 border rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner ${!r.rut ? 'border-[#FF007F]/40' : 'border-white/10'}`} /></div>
+                                    <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1 group-hover:text-[#8A2BE2] transition-colors">RUT</label><input value={r.rut} onChange={e => {const copy = [...recipients]; copy[i].rut = formatRut(e.target.value); setRecipients(copy);}} placeholder="12345678-9" maxLength={10} className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner" /></div>
                                     <div className="space-y-2"><label className="text-[9px] font-black text-white/30 uppercase tracking-widest ml-1">Cant.</label><input value={r.cantidad} onChange={e => {const copy = [...recipients]; copy[i].cantidad = Number(e.target.value); setRecipients(copy);}} type="number" min="1" className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-3 text-xs text-white focus:border-[#8A2BE2] focus:bg-black/60 outline-none font-medium placeholder:text-white/20 transition-all shadow-inner text-center" /></div>
                                     <button onClick={() => setRecipients(recipients.filter((_, idx) => idx !== i))} className="p-3 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-2xl transition-all mb-0.5 border border-red-500/20 hover:border-transparent hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]"><X size={18} /></button>
                                 </div>
@@ -597,7 +505,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                         <button onClick={() => setIsGroupCourtesyOpen(false)} className="p-4 bg-white/5 rounded-full text-white/40 hover:text-white transition-all hover:bg-white/10 hover:scale-110 border border-white/5"><X size={24}/></button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-14 relative z-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-14 relative z-10 max-w-2xl mx-auto w-full">
                         <div className="space-y-4">
                             <label className="text-[10px] font-black text-[#00D15B] uppercase tracking-[0.2em] ml-2">Base de Datos</label>
                             <CustomSelect value={selectedDb} onChange={setSelectedDb} placeholder="Seleccionar..." variant="green" options={uploadedGroups.map(g => ({ label: `${g.name} (${g.data.length})`, value: g.name }))} />
@@ -606,10 +514,7 @@ export default function RRPPPage({ params }: { params: Promise<{ id: string }> }
                             <label className="text-[10px] font-black text-[#00D15B] uppercase tracking-[0.2em] ml-2">Ticket (Cortesía)</label>
                             <CustomSelect value={selectedTicket} onChange={setSelectedTicket} placeholder="Seleccionar..." variant="green" options={courtesyTicketsOnly.map(t => ({ label: t.name, value: t.id }))} />
                         </div>
-                        <div className="space-y-4">
-                            <label className="text-[10px] font-black text-[#00D15B] uppercase tracking-[0.2em] ml-2">Vencimiento</label>
-                            <div className="relative z-50"><DatePicker selected={selectedDate} onChange={(date) => setSelectedDate(date)} locale="es" dateFormat="dd/MM/yyyy" placeholderText="dd-mm-aaaa" customInput={<CustomDateInput placeholder="dd-mm-aaaa" />} wrapperClassName="w-full" /></div>
-                        </div>
+
                     </div>
 
                     <button
