@@ -99,20 +99,46 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
     if (deleteInput !== 'DELETE') return
     setIsDeleting(true)
     try {
-      // 1. Intentamos eliminar los tickets asociados primero (si no hay CASCADE en BD)
-      await supabase.from('ticket_tiers').delete().eq('event_id', eventId)
+      // 1. Borrar consumption_order_items por order_id (via consumption_orders del evento)
+      const { data: orders } = await supabase
+        .from('consumption_orders')
+        .select('id')
+        .eq('event_id', eventId)
+      if (orders && orders.length > 0) {
+        const orderIds = orders.map((o: { id: string }) => o.id)
+        await supabase.from('consumption_order_items').delete().in('order_id', orderIds)
+      }
 
-      // 2. Eliminamos el evento
+      // 2. Borrar consumption_order_items por item_id (doble cobertura)
+      const { data: consumptionItems } = await supabase
+        .from('consumption_items')
+        .select('id')
+        .eq('event_id', eventId)
+      if (consumptionItems && consumptionItems.length > 0) {
+        const itemIds = consumptionItems.map((i: { id: string }) => i.id)
+        await supabase.from('consumption_order_items').delete().in('item_id', itemIds)
+      }
+
+      // 3. Borrar en orden correcto respetando foreign keys
+      await supabase.from('consumption_orders').delete().eq('event_id', eventId)
+      await supabase.from('consumption_items').delete().eq('event_id', eventId)
+      await supabase.from('consumption_categories').delete().eq('event_id', eventId)
+      await supabase.from('tickets').delete().eq('event_id', eventId)
+      await supabase.from('ticket_tiers').delete().eq('event_id', eventId)
+      await supabase.from('event_staff').delete().eq('event_id', eventId)
+
+      // 4. Finalmente eliminar el evento
       const { error } = await supabase.from('events').delete().eq('id', eventId)
       if (error) throw error
-      
+
       setIsDeleteModalOpen(false)
-      setIsDirty(false); router.push('/events') 
+      setIsDirty(false)
+      router.push('/events')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) { 
+    } catch (error: any) {
         // eslint-disable-next-line no-console
-        console.error("Detalle del error:", error); 
-        toast.error("No se pudo eliminar el evento. Es probable que tenga ventas o registros asociados que bloquean el borrado.\n\nDetalle: " + (error?.message || JSON.stringify(error))) 
+        console.error("Detalle del error:", error);
+        toast.error("No se pudo eliminar el evento. Detalle: " + (error?.message || JSON.stringify(error)))
     } finally { setIsDeleting(false) }
   }
 

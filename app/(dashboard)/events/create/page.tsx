@@ -45,12 +45,15 @@ interface TicketTierDB {
     tickets_included?: number
 }
 
-// Fix 8: Cache en memoria para geocodificación (evita rate-limiting de Nominatim)
+// Cache en memoria para geocodificación (evita requests duplicados)
 const geoCache = new Map<string, { lat: number; lon: number } | null>()
 
 async function getCoordinates(address: string): Promise<{ lat: number; lon: number } | null> {
   const key = address.trim().toLowerCase()
   if (geoCache.has(key)) return geoCache.get(key)!
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
+  if (!apiKey) return null
 
   try {
     const queryAddress = key.includes('chile') ? address : `${address}, Chile`
@@ -60,14 +63,15 @@ async function getCoordinates(address: string): Promise<{ lat: number; lon: numb
     const timeout = setTimeout(() => controller.abort(), 5000)
 
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'DyzGO-AdminPanel/1.0' }, signal: controller.signal }
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${apiKey}`,
+      { signal: controller.signal }
     )
     clearTimeout(timeout)
 
     const data = await response.json()
-    const result = data?.length > 0
-      ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
+    const location = data?.results?.[0]?.geometry?.location
+    const result = location
+      ? { lat: location.lat, lon: location.lng }
       : null
 
     geoCache.set(key, result)
