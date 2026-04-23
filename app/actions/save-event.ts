@@ -3,6 +3,22 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthenticatedUser, verifyEventOwnership } from '@/lib/supabase-server'
 
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
+  if (!apiKey || !address) return null
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address + ', Chile')}&key=${apiKey}`
+    )
+    const data = await res.json()
+    console.log('[save-event geocode] status:', data?.status, '| address:', address)
+    const loc = data?.results?.[0]?.geometry?.location
+    return loc ? { lat: loc.lat, lng: loc.lng } : null
+  } catch {
+    return null
+  }
+}
+
 export interface TicketTierSave {
   id: string
   name: string
@@ -65,6 +81,21 @@ export async function saveEvent(
 
     if (eventId) {
       await verifyEventOwnership(eventId, user.id)
+    }
+
+    // Geocodificar desde el servidor si no vienen coordenadas
+    if (eventPayload.latitude == null || eventPayload.longitude == null) {
+      const parts = [
+        [eventPayload.street, eventPayload.street_number].filter(Boolean).join(' '),
+        eventPayload.commune,
+        eventPayload.region,
+      ].filter(Boolean)
+      const address = parts.join(', ')
+      const coords = await geocodeAddress(address)
+      if (coords) {
+        eventPayload.latitude = coords.lat
+        eventPayload.longitude = coords.lng
+      }
     }
 
     // Fix 4: Validación server-side del stock antes de escribir nada en la DB

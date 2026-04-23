@@ -69,6 +69,7 @@ async function getCoordinates(address: string): Promise<{ lat: number; lon: numb
     clearTimeout(timeout)
 
     const data = await response.json()
+    console.log('[geocode] status:', data?.status, '| address:', queryAddress)
     const location = data?.results?.[0]?.geometry?.location
     const result = location
       ? { lat: location.lat, lon: location.lng }
@@ -76,7 +77,8 @@ async function getCoordinates(address: string): Promise<{ lat: number; lon: numb
 
     geoCache.set(key, result)
     return result
-  } catch {
+  } catch (err) {
+    console.error('[geocode] error:', err)
     return null
   }
 }
@@ -258,11 +260,11 @@ function CreateEventContent() {
         finalImageUrl = publicUrl
       }
 
-      // Geocodificación con cache (Fix 8)
-      let lat = null, lon = null
+      // Geocodificación — solo sobreescribe si obtenemos coords válidas
+      let coordPayload: { latitude?: number; longitude?: number } = {}
       if (eventData.address) {
         const coords = await getCoordinates(eventData.address)
-        if (coords) { lat = coords.lat; lon = coords.lon }
+        if (coords) coordPayload = { latitude: coords.lat, longitude: coords.lon }
       }
 
       const finalStatus = eventData.status || 'draft'
@@ -273,8 +275,7 @@ function CreateEventContent() {
         commune: eventData.commune,
         street: eventData.street,
         street_number: eventData.number,
-        latitude: lat,
-        longitude: lon,
+        ...coordPayload,
         club_name: eventData.venue,
         date: eventData.date,
         end_date: eventData.endDate || eventData.date,

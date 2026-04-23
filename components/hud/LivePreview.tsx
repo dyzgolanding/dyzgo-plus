@@ -372,9 +372,6 @@ export default function LivePreview() {
                 ) : (
                   <div className="absolute inset-0 bg-white/[0.02] animate-pulse" />
                 )}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none flex flex-col items-center justify-center drop-shadow-2xl">
-                  <MapPin size={36} color="white" fill={accent} strokeWidth={1.5} />
-                </div>
               </div>
 
               {/* Dirección */}
