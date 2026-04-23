@@ -121,9 +121,8 @@ export default function LivePreview() {
     return <TicketSelectionPreview eventData={eventData} accent={accent} radius={radius} font={font} cardBg={cardBg} borderCol={borderCol} />
   }
 
-  const GOOGLE_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
-  const mapQuery = encodeURIComponent(eventData.address || 'Santiago, Chile')
-  const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${GOOGLE_API_KEY}&q=${mapQuery}&maptype=satellite&zoom=15&language=es`
+  const mapQuery = encodeURIComponent((eventData.address || 'Santiago, Chile') + ', Chile')
+  const mapUrl = `https://maps.google.com/maps?q=${mapQuery}&t=k&z=15&output=embed`
 
   const minPrice = eventData.tickets.length > 0
     ? Math.min(...eventData.tickets.map(t => t.price))
