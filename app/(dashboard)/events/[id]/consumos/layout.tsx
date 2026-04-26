@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { use } from 'react'
-import { LayoutDashboard, UtensilsCrossed, GlassWater, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, UtensilsCrossed, GlassWater, BarChart3, Gift } from 'lucide-react'
 
 export default function ConsumosLayout({
   children,
@@ -16,10 +16,11 @@ export default function ConsumosLayout({
   const pathname = usePathname()
 
   const tabs = [
-    { href: `/events/${eventId}/consumos`,           label: 'Overview',  icon: <LayoutDashboard size={14} />, exact: true  },
-    { href: `/events/${eventId}/consumos/menu`,      label: 'Carta',     icon: <UtensilsCrossed size={14} />, exact: false },
-    { href: `/events/${eventId}/consumos/bars`,      label: 'Barras',    icon: <GlassWater size={14} />,      exact: false },
-    { href: `/events/${eventId}/consumos/analytics`, label: 'Analytics', icon: <BarChart3 size={14} />,       exact: false },
+    { href: `/events/${eventId}/consumos`,              label: 'Overview',   icon: <LayoutDashboard size={14} />, exact: true  },
+    { href: `/events/${eventId}/consumos/menu`,         label: 'Carta',      icon: <UtensilsCrossed size={14} />, exact: false },
+    { href: `/events/${eventId}/consumos/bars`,         label: 'Barras',     icon: <GlassWater size={14} />,      exact: false },
+    { href: `/events/${eventId}/consumos/analytics`,    label: 'Analytics',  icon: <BarChart3 size={14} />,       exact: false },
+    { href: `/events/${eventId}/consumos/cortesias`,    label: 'Cortesías',  icon: <Gift size={14} />,            exact: false },
   ]
 
   return (

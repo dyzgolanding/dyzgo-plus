@@ -2,19 +2,20 @@
 
 import { useState, useEffect, use, useRef } from 'react'
 import { useRouter } from 'next/navigation' 
-import { 
-  Globe, 
-  Zap, 
-  AlertTriangle, 
-  Save, 
-  Trash2, 
+import {
+  Globe,
+  Zap,
+  AlertTriangle,
+  Save,
+  Trash2,
   Loader2,
   CheckCircle2,
   AlertCircle,
   Settings as SettingsIcon,
   ShieldCheck,
   RefreshCcw,
-  Users
+  Users,
+  ExternalLink
 } from 'lucide-react'
 import { useEventStore } from '@/store/useEventStore'
 import { supabase } from '@/lib/supabase'
@@ -39,11 +40,14 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
   const [deleteInput, setDeleteInput] = useState('')
 
   // ESTADOS
-  const [isLive, setIsLive] = useState(false) 
+  const [isLive, setIsLive] = useState(false)
+  const [isInfo, setIsInfo] = useState(false)
   const [maxTickets, setMaxTickets] = useState(4)
   const [isTransferable, setIsTransferable] = useState(true)
   const [isResellable, setIsResellable] = useState(true)
-  
+  const [isGod, setIsGod] = useState(false)
+  const [externalTicketUrl, setExternalTicketUrl] = useState('')
+
   // ESTADO INTERNO: Fecha de fin para validación
   const [eventEndDate, setEventEndDate] = useState<string | null>(null)
   const [eventEndTime, setEventEndTime] = useState<string | null>(null)
@@ -51,31 +55,40 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
   // 1. CARGA INICIAL
   useEffect(() => {
     const fetchLatestData = async () => {
-      const { data: event, error } = await supabase
-        .from('events')
-        .select(`
-            status, 
+      const [{ data: event, error }, { data: { user } }] = await Promise.all([
+        supabase
+          .from('events')
+          .select(`
+            status,
             max_tickets_per_person,
             is_transferable,
             is_resellable,
             date,
             end_date,
-            end_time
-        `) 
-        .eq('id', eventId)
-        .single()
+            end_time,
+            external_ticket_url
+          `)
+          .eq('id', eventId)
+          .single(),
+        supabase.auth.getUser(),
+      ])
 
       if (event && !error) {
-        // CORREGIDO: Se activa si el status es 'active'
         setIsLive(event.status === 'active')
+        setIsInfo(event.status === 'info')
         if (event.max_tickets_per_person) setMaxTickets(event.max_tickets_per_person)
         setIsTransferable(event.is_transferable ?? true)
         setIsResellable(event.is_resellable ?? true)
-
-        // Guardamos fechas para validar al guardar
+        setExternalTicketUrl(event.external_ticket_url || '')
         setEventEndDate(event.end_date || event.date)
         setEventEndTime(event.end_time || '23:59:59')
       }
+
+      if (user) {
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+        setIsGod(profile?.role === 'god')
+      }
+
       setIsLoading(false)
     }
 
@@ -145,9 +158,8 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
   const handleSaveChanges = async () => {
     setIsSaving(true)
     try {
-      // CORRECCIÓN: Ahora usamos 'active' en lugar de 'published'
-      let newStatus = isLive ? 'active' : 'draft'
-      
+      let newStatus = isInfo ? 'info' : isLive ? 'active' : 'draft'
+
       // --- VALIDACIÓN DE CADUCIDAD AL GUARDAR ---
       if (newStatus === 'active' && eventEndDate) {
           const now = new Date()
@@ -163,11 +175,12 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
       }
       // ------------------------------------------
 
-      const payload = { 
+      const payload: Record<string, unknown> = {
         status: newStatus,
         max_tickets_per_person: maxTickets,
-        is_transferable: isTransferable, 
-        is_resellable: isResellable      
+        is_transferable: isTransferable,
+        is_resellable: isResellable,
+        ...(isGod ? { external_ticket_url: externalTicketUrl.trim() || null } : {}),
       }
 
       const { error } = await supabase.from('events').update(payload).eq('id', eventId)
@@ -247,39 +260,76 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
                         <div><h3 className="text-xl font-black text-white uppercase tracking-tight">Estado del Evento</h3><p className="text-white/40 text-xs font-medium tracking-wide">Controla la visibilidad pública.</p></div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className={`grid grid-cols-1 gap-6 ${isGod ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
                         {/* Botón Público */}
-                        <button 
-                            onClick={() => { setIsLive(true); setIsDirty(true); }}
+                        <button
+                            onClick={() => { setIsLive(true); setIsInfo(false); setIsDirty(true); }}
                             className={`relative p-6 rounded-[2rem] text-left transition-all group/btn overflow-hidden border ${
-                                isLive 
-                                ? 'bg-[#00D15B]/10 border-[#00D15B]/50 shadow-[0_0_20px_rgba(0,209,91,0.1)]' 
+                                isLive && !isInfo
+                                ? 'bg-[#00D15B]/10 border-[#00D15B]/50 shadow-[0_0_20px_rgba(0,209,91,0.1)]'
                                 : 'bg-black/40 border-white/5 hover:border-white/20 hover:bg-white/5'
                             }`}
                         >
                             <div className="flex justify-between items-start mb-3">
-                                <span className={`text-sm font-black uppercase tracking-wider ${isLive ? 'text-[#00D15B]' : 'text-white'}`}>Público (Live)</span>
-                                {isLive && <CheckCircle2 size={18} className="text-[#00D15B]" />}
+                                <span className={`text-sm font-black uppercase tracking-wider ${isLive && !isInfo ? 'text-[#00D15B]' : 'text-white'}`}>Público (Live)</span>
+                                {isLive && !isInfo && <CheckCircle2 size={18} className="text-[#00D15B]" />}
                             </div>
                             <p className="text-[10px] text-white/40 font-medium leading-relaxed">El evento es visible en la cartelera y se pueden comprar tickets.</p>
                         </button>
 
                         {/* Botón Borrador */}
-                        <button 
-                            onClick={() => { setIsLive(false); setIsDirty(true); }}
+                        <button
+                            onClick={() => { setIsLive(false); setIsInfo(false); setIsDirty(true); }}
                             className={`relative p-6 rounded-[2rem] text-left transition-all group/btn overflow-hidden border ${
-                                !isLive 
-                                ? 'bg-white/10 border-white/30 shadow-[0_0_20px_rgba(255,255,255,0.05)]' 
+                                !isLive && !isInfo
+                                ? 'bg-white/10 border-white/30 shadow-[0_0_20px_rgba(255,255,255,0.05)]'
                                 : 'bg-black/40 border-white/5 hover:border-white/20 hover:bg-white/5'
                             }`}
                         >
                             <div className="flex justify-between items-start mb-3">
-                                <span className={`text-sm font-black uppercase tracking-wider ${!isLive ? 'text-white' : 'text-white/60'}`}>Borrador (Draft)</span>
-                                {!isLive && <CheckCircle2 size={18} className="text-white/60" />}
+                                <span className={`text-sm font-black uppercase tracking-wider ${!isLive && !isInfo ? 'text-white' : 'text-white/60'}`}>Borrador (Draft)</span>
+                                {!isLive && !isInfo && <CheckCircle2 size={18} className="text-white/60" />}
                             </div>
                             <p className="text-[10px] text-white/40 font-medium leading-relaxed">Oculto al público. Solo administradores pueden verlo.</p>
                         </button>
+
+                        {/* Botón Informativo — solo visible para gods */}
+                        {isGod && (
+                            <button
+                                onClick={() => { setIsInfo(true); setIsLive(false); setIsDirty(true); }}
+                                className={`relative p-6 rounded-[2rem] text-left transition-all group/btn overflow-hidden border ${
+                                    isInfo
+                                    ? 'bg-[#8A2BE2]/10 border-[#8A2BE2]/50 shadow-[0_0_20px_rgba(138,43,226,0.1)]'
+                                    : 'bg-black/40 border-white/5 hover:border-white/20 hover:bg-white/5'
+                                }`}
+                            >
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-black uppercase tracking-wider ${isInfo ? 'text-[#8A2BE2]' : 'text-white/60'}`}>Informativo</span>
+                                        <span className="text-[9px] bg-[#8A2BE2]/20 text-[#8A2BE2] px-1.5 py-0.5 rounded-full font-black border border-[#8A2BE2]/30 tracking-widest">GOD</span>
+                                    </div>
+                                    {isInfo && <CheckCircle2 size={18} className="text-[#8A2BE2]" />}
+                                </div>
+                                <p className="text-[10px] text-white/40 font-medium leading-relaxed">Visible en la cartelera, la venta se gestiona externamente.</p>
+                            </button>
+                        )}
                     </div>
+
+                    {/* URL externa — solo cuando isInfo + isGod */}
+                    {isGod && isInfo && (
+                        <div className="mt-6 space-y-2">
+                            <label className="text-xs font-black text-white/40 uppercase tracking-widest flex items-center gap-2">
+                                <ExternalLink size={12} /> URL de Ticketera Externa
+                            </label>
+                            <input
+                                type="url"
+                                value={externalTicketUrl}
+                                onChange={e => { setExternalTicketUrl(e.target.value); setIsDirty(true); }}
+                                placeholder="https://ticketera.com/evento"
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-5 py-4 text-sm text-white outline-none focus:border-[#8A2BE2]/50 transition-colors placeholder:text-white/20 font-medium"
+                            />
+                        </div>
+                    )}
                 </section>
 
                 {/* 2. SEGURIDAD Y DISTRIBUCIÓN */}

@@ -50,9 +50,20 @@ interface VisibilityBtnProps {
 export default function SettingsPanel() {
   const { eventData, updateSettings } = useEventStore() as unknown as StoreState
   const [updating, setUpdating] = useState(false)
+  const [isGod, setIsGod] = useState(false)
+  const [externalTicketUrl, setExternalTicketUrl] = useState('')
+  const [savingUrl, setSavingUrl] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<string | null>(
     eventData.id ? (eventData.status ?? null) : 'draft'
   )
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles').select('role').eq('id', user.id).single()
+        .then(({ data }) => { setIsGod(data?.role === 'god') })
+    })
+  }, [])
 
   // 1. EFECTO DE VERDAD ABSOLUTA (Sincroniza estado y reglas comerciales)
   useEffect(() => {
@@ -61,12 +72,13 @@ export default function SettingsPanel() {
 
         const { data, error } = await supabase
             .from('events')
-            .select('status, is_transferable, is_resellable')
+            .select('status, is_transferable, is_resellable, external_ticket_url')
             .eq('id', eventData.id)
             .single()
 
         if (data && !error) {
             setCurrentStatus(data.status)
+            setExternalTicketUrl(data.external_ticket_url || '')
             
             // Sincronizamos las reglas comerciales si difieren del store
             const currentTrans = eventData.settings?.is_transferable ?? true
@@ -281,21 +293,46 @@ export default function SettingsPanel() {
           </div>
       </div>
 
-      <div className="space-y-3">
-          <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-             Tipo de Evento
-          </label>
-          <div className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${isInfo ? 'bg-blue-500/10 border-blue-500/40' : 'bg-zinc-900 border-zinc-800'}`}>
-              <div>
-                  <p className={`text-sm font-bold ${isInfo ? 'text-blue-300' : 'text-zinc-300'}`}>Informativo</p>
-                  <p className="text-[11px] text-zinc-500 mt-0.5">Sin venta de tickets. Solo difusión.</p>
+      {isGod && (
+        <div className="space-y-3">
+            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+               Tipo de Evento
+            </label>
+            <div className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${isInfo ? 'bg-blue-500/10 border-blue-500/40' : 'bg-zinc-900 border-zinc-800'}`}>
+                <div>
+                    <p className={`text-sm font-bold ${isInfo ? 'text-blue-300' : 'text-zinc-300'}`}>Informativo</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">Sin venta de tickets. Solo difusión.</p>
+                </div>
+                <ToggleButton
+                    active={isInfo}
+                    onClick={handleToggleInfo}
+                />
+            </div>
+            {isInfo && (
+              <div className="space-y-2">
+                <input
+                  type="url"
+                  value={externalTicketUrl}
+                  onChange={e => setExternalTicketUrl(e.target.value)}
+                  placeholder="https://ticketera.com/evento"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500/60 transition-colors placeholder:text-zinc-600 font-medium"
+                />
+                <button
+                  onClick={async () => {
+                    if (!eventData.id) return
+                    setSavingUrl(true)
+                    await supabase.from('events').update({ external_ticket_url: externalTicketUrl.trim() || null }).eq('id', eventData.id)
+                    setSavingUrl(false)
+                  }}
+                  disabled={savingUrl}
+                  className="w-full py-2.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs font-black rounded-xl transition-all uppercase tracking-widest"
+                >
+                  {savingUrl ? 'Guardando...' : 'Guardar URL'}
+                </button>
               </div>
-              <ToggleButton
-                  active={isInfo}
-                  onClick={handleToggleInfo}
-              />
-          </div>
-      </div>
+            )}
+        </div>
+      )}
 
       <div className="space-y-3">
           <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
