@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutDashboard, Ticket, BarChart3, Settings, LogOut, Plus, Bell, Check, ChevronDown, X, ShieldAlert } from 'lucide-react'
+import { LayoutDashboard, Ticket, BarChart3, Settings, LogOut, Plus, Bell, Check, ChevronDown, X, ShieldAlert, UtensilsCrossed } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -174,6 +174,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
             <SidebarLink href="/events" icon={<Ticket size={18} />} label="Mis Eventos" active={pathname.includes('/events')} />
             <SidebarLink href="/finance" icon={<BarChart3 size={18} />} label="Analiticas" active={pathname.includes('/finance')} />
             
+            <p className="px-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2 mt-8">Club Gordos</p>
+            <SidebarLink href="/bar" icon={<UtensilsCrossed size={18} />} label="BAR" active={pathname.startsWith('/bar')} />
+
             <p className="px-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2 mt-8">Configuración</p>
             <SidebarLink href="/settings" icon={<Settings size={18} />} label="Cuenta" active={pathname.startsWith('/settings')} />
             <SidebarLink href="/team" icon={<ShieldAlert size={18} />} label="Blacklist" active={pathname.includes('/team')} />
